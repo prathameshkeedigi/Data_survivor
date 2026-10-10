@@ -181,7 +181,14 @@ Order: **round score**, then **faster total answer time in that round** (server-
 | Finale | fixed | **10 winners** (cap 20) | 5–10 |
 
 ### Finale ranking
-Most correct answers, then least total server-measured time on correct answers, then the tie-breaker question, then a spare tie-breaker.
+The finale has 3 scored questions plus a **tie-breaker that is always asked** as the 4th ("bonus speed question"). This avoids a conditional branch on stage.
+
+Ranking order:
+1. Most correct answers on the 3 scored questions.
+2. Least total server-measured time on correct answers.
+3. The tie-breaker being correct.
+4. Tie-breaker time.
+5. Player ID.
 
 ### Known weakness
 Always picking "the option that seems rarest" can game the rarity rule. Live counts stay hidden while voting is open. The simulation includes this "sneaky bot", and the results will be reported to the leads.
@@ -227,6 +234,13 @@ The option-to-tag mapping lives in `shared/` for the leads to review.
 ---
 
 ## 8. Testing plan
+
+**Method: Test-Driven Development.** For every feature:
+1. The test cases are designed first, in [BUILD_PHASES.md](BUILD_PHASES.md), with IDs.
+2. They are written as code and seen to fail.
+3. Only then is the feature built, until they pass.
+
+Test names carry their IDs, so `npm test` output maps 1:1 to the spec. Every bug found later gets a reproducing test before it is fixed. Manual checks (devices, venue, rehearsal) are written as checklists before the feature too.
 
 ### 8.1 Logic (Vitest)
 - Rarity on hand-checked examples, shares summing to 100%, scores never negative, the same seed giving the same output.
