@@ -6,6 +6,7 @@ import type { MomentCard } from "../../shared/moments";
 import { call, makeSocket, MOMENT_COPY, OPTION_COLOR, qNumber, ROUND_THEMES, storage, useConnected, useCountdown } from "./lib/live";
 import { DotMap, LetterChip } from "./components/charts";
 import { Wrapped } from "./play/Wrapped";
+import { MiniBars } from "./components/visuals";
 
 const socket = makeSocket();
 const TOKEN = "ds_token";
@@ -381,6 +382,11 @@ function Results({ view }: { view: PlayerView }) {
               </>
             ) : (
               <p className="mt-1 text-muted">You skipped this one.</p>
+            )}
+            {it.dist && (
+              <div className="mt-3 border-t border-line pt-3">
+                <MiniBars dist={it.dist} mine={it.myOption} />
+              </div>
             )}
           </div>
         ))}

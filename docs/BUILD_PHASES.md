@@ -11,6 +11,7 @@
 | 5 Data moments | ✅ Done | A1–A11 pass. Prediction and pattern use shuffle checks; false-alarm rate measured at 5/100 |
 | 6 Wrapped | ✅ Done (automated part) | W1–W3 pass; share card renders in e2e |
 | 7 Load | ✅ Passed locally | 500 bots: 0 lost/duplicated answers in 7,331; late answers all rejected; 233 reconnects; p95 scene change 545 ms; lag 42 ms |
+| 9 Visual upgrade | ✅ Done | V1–V11 pass: 78 unit tests, both e2e tests (all new charts visible), phone bundle 99.7 KB; 500-bot swarm rerun: 0 lost in 7,371, p95 251 ms, lag 25 ms |
 | 8 Deploy & rehearsal | ⏳ Needs people | Deploy (DEPLOY.md), rerun the swarm on the real URL, real-device checks (U8, W4–W5, D3–D4), rehearsal (RUNBOOK.md) |
 
 **Still manual (cannot be automated here):**

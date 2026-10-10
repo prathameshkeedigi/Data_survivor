@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { WrappedData } from "../../../shared/moments";
 import { DotMap } from "../components/charts";
+import { DistBars, RoundsBars, TagBars, TimelineStrip } from "../components/visuals";
 
 type Card = { key: string; bg: string; ink: string; body: React.ReactNode };
 
@@ -44,12 +45,16 @@ export function Wrapped({ data }: { data: WrappedData }) {
               of the room ({data.rarest.count} {data.rarest.count === 1 ? "person" : "people"}) chose what you did on Q{data.rarest.num}:
             </p>
             <p className="font-display mt-6 text-2xl font-semibold leading-snug">“{data.rarest.text}”</p>
+            <div className="mt-8">
+              <p className="mb-3 text-sm text-[#a7a2b8]">How the room split on Q{data.rarest.num}</p>
+              <DistBars dist={data.rarest.dist} mine={data.rarest.option} ink="#f4f2f8" />
+            </div>
           </>
         ),
       });
     list.push({
       key: "room",
-      bg: "#3987e5",
+      bg: "#2b6cc4",
       ink: "#ffffff",
       body: (
         <>
@@ -66,9 +71,31 @@ export function Wrapped({ data }: { data: WrappedData }) {
                 ? "Mostly against the crowd."
                 : "Mostly with the crowd — on your own terms."}
           </p>
+          {data.timeline.length > 0 && (
+            <div className="mt-8">
+              <p className="mb-3 text-sm opacity-85">Question by question</p>
+              <TimelineStrip items={data.timeline} ink="#ffffff" />
+            </div>
+          )}
         </>
       ),
     });
+    if (data.rounds.length > 0)
+      list.push({
+        key: "rounds",
+        bg: "#4b3482",
+        ink: "#ffffff",
+        body: (
+          <>
+            <p className="text-sm font-bold tracking-[0.2em] opacity-80">ROUND BY ROUND</p>
+            <h2 className="font-display mt-6 text-[40px] font-bold leading-[1.05]">How common were your answers?</h2>
+            <p className="mt-3 text-lg opacity-85">Average share of the room that picked the same as you. Lower means rarer.</p>
+            <div className="mt-8">
+              <RoundsBars rounds={data.rounds} ink="#ffffff" />
+            </div>
+          </>
+        ),
+      });
     if (data.map)
       list.push({
         key: "map",
@@ -87,7 +114,7 @@ export function Wrapped({ data }: { data: WrappedData }) {
       });
     list.push({
       key: "label",
-      bg: "#199e70",
+      bg: "#11805a",
       ink: "#ffffff",
       body: (
         <>
@@ -101,6 +128,11 @@ export function Wrapped({ data }: { data: WrappedData }) {
                   Q{e.num}: “{e.text}”
                 </p>
               ))}
+            </div>
+          )}
+          {Object.keys(data.tags).length > 0 && (
+            <div className="mt-6">
+              <TagBars tags={data.tags} top={data.label.tag} ink="#ffffff" />
             </div>
           )}
           <p className="mt-6 text-sm opacity-75">A playful label from your answers — not a personality test.</p>

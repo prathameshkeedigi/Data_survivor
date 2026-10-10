@@ -1,21 +1,22 @@
 @import "@fontsource-variable/space-grotesk";
 @import "tailwindcss";
 
-/* One dark identity: near-black, club purple, white type.
+/* One identity: near-black, club purple, white type — one typeface throughout.
    Option colours A–D are validated colour-blind-safe on --bg (dataviz validator, dark mode). */
 @theme {
   --font-display: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Space Grotesk Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  --color-bg: #0e0d13;
-  --color-surface: #17151f;
-  --color-surface-2: #201d2b;
-  --color-line: #2d2939;
-  --color-ink: #f4f2f8;
-  --color-muted: #a7a2b8;
-  --color-faint: #6f6a80;
+  --color-bg: #0b0a0f;
+  --color-surface: #15131c;
+  --color-surface-2: #1e1b28;
+  --color-line: #2b2737;
+  --color-ink: #f5f3fa;
+  --color-muted: #a6a1b7;
+  --color-faint: #6f6a83;
   --color-brand: #7b5ac6;
-  --color-brand-ink: #b9a3f7;
+  --color-brand-deep: #4b3482;
+  --color-brand-ink: #c3b1ff;
 
   --color-opt-a: #3987e5;
   --color-opt-b: #d95926;
@@ -50,11 +51,46 @@ body {
 
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* Section label: small caps with a brand tick. */
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-brand-ink);
+}
+.kicker::before {
+  content: "";
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 2px;
+  background: var(--color-brand);
+}
+
+/* Projector backdrop: a faint data grid and a soft brand glow in one corner. */
+.stage {
+  background-color: var(--color-bg);
+  background-image:
+    radial-gradient(ellipse 60% 50% at 0% 0%, rgba(123, 90, 198, 0.16), transparent 70%),
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.055) 1px, transparent 0);
+  background-size:
+    100% 100%,
+    3.2vmin 3.2vmin;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 /* Bars grow from zero; data moments fade up. Only transform/opacity animate (smooth on weak laptops). */
@@ -63,18 +99,37 @@ body {
     transform: scaleX(0);
   }
 }
+@keyframes grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
 @keyframes rise {
   from {
     opacity: 0;
     transform: translateY(12px);
   }
 }
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
 .grow-x {
   transform-origin: left center;
   animation: grow-x 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+.grow-y {
+  transform-origin: center bottom;
+  transform-box: fill-box;
+  animation: grow-y 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
 .rise {
   animation: rise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.pop {
+  animation: pop 400ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
