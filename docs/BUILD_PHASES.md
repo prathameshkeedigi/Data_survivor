@@ -248,3 +248,23 @@ These run **automatically, using real socket clients** against a local server.
 | D5 | Rehearsal with 20–40 club members + bots, timed. |
 | D6 | Go/No-Go checklist (EXECUTION_PLAN §8.5). |
 | D7 | Final reset on Monday: watermark gone, 0 players. **No deploys after this.** |
+
+## Phase 9 — Visual upgrade (Sunday)
+
+**Goal:** more charts on the projector and in Wrapped, and a typography, colour and spacing refresh, **without changing game behaviour**. All earlier tests must still pass.
+
+New data the server sends (aggregates only — privacy rules unchanged):
+
+| ID | Type | Test | Expected |
+|---|---|---|---|
+| V1 | Unit | `game.roundDistribution(r)` after locking | `scores` = every player active before the lock; `survivorScores` = the kept players; `cutoff` = lowest survivor score |
+| V2 | Integration | Projector at the survivors scene | `survivors.histogram` has 10 bins; bins sum to the players active before the lock, `kept` sums to the survivors; no player IDs |
+| V3 | Integration | Recap scene | Projector gets `recap` with 4 data-moment summaries; phones do **not** get it (keeps phone messages small) |
+| V4 | Integration | Phone results card | Each answered item has `dist` (% per option) summing to 98–102 |
+| V5 | Unit | Wrapped `rarest.dist` | % per option for the rarest question, sums to 98–102, and includes the player's option |
+| V6 | Unit | Wrapped `timeline` | 12 entries in question order: `with` / `against` / `skip`, matching `againstMajority` |
+| V7 | Unit | Wrapped `tags` | Tag counts sum to the number of questions answered |
+| V8 | Unit | Wrapped `rounds` | 4 entries; `me` and `room` are 0–100 or `me` = null for a round with no answers; no NaN |
+| V9 | E2E | Projector shows the new charts | Lobby join dots, question answer meter, survivors histogram, recap thumbnails are visible |
+| V10 | E2E | Phone shows the new charts | Results mini-bars; Wrapped distribution, timeline, rounds and tag charts are visible |
+| V11 | Regression | Everything from Phases 1–7 | All earlier tests pass; the 500-bot load test still passes |
