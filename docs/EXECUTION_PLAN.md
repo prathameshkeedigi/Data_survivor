@@ -351,7 +351,21 @@ The GitHub CLI isn't installed. Either create an empty private repo on github.co
 | Doesn't sleep **during the event** | On free tiers that sleep, open `/screen` 15 min early. Its live connection keeps the server awake. |
 | **No redeploys** after Monday's final reset | A redeploy restarts the server. |
 
-Free options that meet these requirements include Render (free tier), Koyeb and Railway's trial, or a college or club server. `docs/DEPLOY.md` will cover the leads' chosen provider.
+### 12.2 Chosen hosting (₹0): primary + hot standby
+
+| Role | Provider | Plan | Why |
+|---|---|---|---|
+| **Primary** | **Railway** (Singapore region) | Free trial: $5 one-time credit for 30 days, 1 GB RAM, shared vCPU, never sleeps | More CPU than other free tiers and no sleep. The event uses well under $1 of the credit. |
+| **Standby** | **Render** (Singapore region) | Free: 512 MB RAM, 0.1 CPU, sleeps after 15 min without traffic | Same code, already running. Kept awake by opening its `/screen` before the event. |
+
+**Failover:** if the primary dies mid-game, the host opens the standby's `/host` and clicks **Restore** (the state is in the host's browser). The projector then shows a second QR code / short URL, and phones rejoin with their rejoin code.
+
+**Rejected:**
+- **Vercel / Netlify:** serverless, so they can't hold open connections.
+- **Supabase free Realtime:** 200 concurrent connections and **100 messages/second**. One "next question" broadcast to 400 phones is already 400 messages, and exceeding quotas can suspend the project.
+- **Cloudflare quick tunnels / ngrok free:** a hard cap of 200 in-flight requests on quick tunnels, and no uptime guarantee.
+
+Phase 7's load test runs on **both** deployments. If Render's 0.1 CPU can't handle 500 bots, it stays the standby only.
 
 ## 13. Open decisions
 
