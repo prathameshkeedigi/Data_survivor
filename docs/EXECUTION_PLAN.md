@@ -191,7 +191,24 @@ Ranking order:
 5. Player ID.
 
 ### Known weakness
-Always picking "the option that seems rarest" can game the rarity rule. Live counts stay hidden while voting is open. The simulation includes this "sneaky bot", and the results will be reported to the leads.
+Always picking "the option that seems rarest" can game the rarity rule. Live counts stay hidden while voting is open.
+
+**Measured (test E26, 1,000 simulated games, 150 players with real answer patterns + 2 bots):**
+
+| Player | Reached the finale |
+|---|---|
+| Sneaky bot (knows the least popular option) | **99.9%** |
+| Random bot (taps anything) | **60.6%** |
+| Average real player | 13.2% |
+
+In a room where people's answers follow patterns, random or contrarian answers are rare by definition. This is inherent to a minority game, not a bug.
+
+**Why it's acceptable:**
+- Rarity only gets players **into** the finale.
+- **Winners are decided by the objective finale questions**, which can't be gamed this way.
+- A real person can only *guess* the least popular option, while the bot knew it exactly.
+
+**Leads to decide:** keep as is (recommended, and say on stage *"thinking differently gets you to the finale; knowing data wins it"*), or change the rule.
 
 ---
 
