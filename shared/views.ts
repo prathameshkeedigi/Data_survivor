@@ -20,6 +20,8 @@ export interface SurvivorsView {
   round: number;
   kept: number;
   eliminated: number;
+  /** Round scores of everyone who was in the race, in 10 bins (low → high rarity); kept = survivors per bin */
+  histogram: { bins: number[]; kept: number[]; min: number; max: number } | null;
 }
 
 export interface BaseView {
@@ -54,7 +56,16 @@ export interface PlayerMe {
 
 export interface RoundCard {
   round: number;
-  items: { qid: string; prompt: string; myOption: OptionKey | null; myText: string | null; pctSame: number | null; n: number }[];
+  items: {
+    qid: string;
+    prompt: string;
+    myOption: OptionKey | null;
+    myText: string | null;
+    pctSame: number | null;
+    n: number;
+    /** % of the room per option */
+    dist: Record<OptionKey, number>;
+  }[];
   /** null until survivors are locked */
   survived: boolean | null;
 }
@@ -74,6 +85,8 @@ export interface PlayerView extends BaseView {
 export interface ScreenView extends BaseView {
   kind: "screen";
   answered: number;
+  /** Recap scene only: the four data moments, for thumbnails (null = not available) */
+  recap?: (unknown | null)[];
 }
 
 export interface HostInfo {

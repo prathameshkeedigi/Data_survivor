@@ -93,7 +93,23 @@ export type MomentCard =
 export interface WrappedData {
   n: number;
   answered: number;
-  rarest: { qid: string; num: number; prompt: string; text: string; pct: number; count: number } | null;
+  rarest: {
+    qid: string;
+    num: number;
+    prompt: string;
+    text: string;
+    pct: number;
+    count: number;
+    option: OptionKey;
+    /** % of the room per option on that question */
+    dist: Record<OptionKey, number>;
+  } | null;
+  /** One entry per dilemma question, in order: did you go with the most popular answer? */
+  timeline: { num: number; mark: "with" | "against" | "skip" }[];
+  /** How many of your answers carried each playful tag */
+  tags: Record<string, number>;
+  /** Per round: average % of the room that chose the same as you, vs the room's average */
+  rounds: { round: number; me: number | null; room: number }[];
   againstMajority: { count: number; of: number };
   label: { name: string; tag: string | null; evidence: { num: number; prompt: string; text: string }[] };
   map: { points: GroupsMoment["points"]; myIndex: number; groupLabel: string | null } | null;

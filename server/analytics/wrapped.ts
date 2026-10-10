@@ -1,6 +1,6 @@
-import { DILEMMA_QUESTIONS, OPTION_KEYS, type OptionKey, type WrappedTag } from "../../shared/questions";
+import { DILEMMA_QUESTIONS, OPTION_KEYS, WRAPPED_TAGS, type OptionKey, type WrappedTag } from "../../shared/questions";
 import type { WrappedData } from "../../shared/moments";
-import type { Answers } from "./moments";
+import type { Answers, Row } from "./moments";
 
 export const LABELS: Record<WrappedTag, string> = {
   evidence: "Evidence Hunter",
@@ -29,6 +29,16 @@ export function computeWrapped(ans: Answers): Map<string, WrappedCore> {
     }
   }
 
+  const pctSame = (qid: string, opt: OptionKey) => (100 * counts[qid][opt]) / totals[qid];
+  const roundAvg = (r: Row, round: number): number | null => {
+    const qs = DILEMMA_QUESTIONS.filter((q) => q.round === round && r[q.id]);
+    return qs.length ? qs.reduce((s, q) => s + pctSame(q.id, r[q.id]!), 0) / qs.length : null;
+  };
+  const roomRound = [1, 2, 3, 4].map((round) => {
+    const vals = people.map(([, r]) => roundAvg(r, round)).filter((v): v is number => v !== null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  });
+
   const out = new Map<string, WrappedCore>();
   for (const [id, r] of ans) {
     const mine = DILEMMA_QUESTIONS.map((q, i) => ({ q, num: i + 1, opt: r[q.id] })).filter((x) => x.opt) as {
@@ -47,13 +57,17 @@ export function computeWrapped(ans: Answers): Map<string, WrappedCore> {
           text: rarestPick.q.options.find((o) => o.key === rarestPick.opt)!.text,
           pct: pctOf(rarestPick),
           count: counts[rarestPick.q.id][rarestPick.opt],
+          option: rarestPick.opt,
+          dist: Object.fromEntries(OPTION_KEYS.map((k) => [k, Math.round((100 * counts[rarestPick.q.id][k]) / totals[rarestPick.q.id])])) as Record<OptionKey, number>,
         }
       : null;
 
-    const against = mine.filter((x) => {
-      const top = Math.max(...OPTION_KEYS.map((k) => counts[x.q.id][k]));
-      return counts[x.q.id][x.opt] < top;
-    }).length;
+    const isAgainst = (x: (typeof mine)[number]) => counts[x.q.id][x.opt] < Math.max(...OPTION_KEYS.map((k) => counts[x.q.id][k]));
+    const against = mine.filter(isAgainst).length;
+    const timeline = DILEMMA_QUESTIONS.map((q, i) => {
+      const m = mine.find((x) => x.q.id === q.id);
+      return { num: i + 1, mark: (!m ? "skip" : isAgainst(m) ? "against" : "with") as "with" | "against" | "skip" };
+    });
 
     const tagCount: Partial<Record<WrappedTag, number>> = {};
     for (const x of mine) {
@@ -68,8 +82,16 @@ export function computeWrapped(ans: Answers): Map<string, WrappedCore> {
       .slice(0, 3)
       .map((x) => ({ num: x.num, prompt: x.q.prompt, text: x.q.options.find((o) => o.key === x.opt)!.text }));
 
+    const tags = Object.fromEntries(WRAPPED_TAGS.map((t) => [t, tagCount[t] ?? 0]));
+    const rounds = [1, 2, 3, 4].map((round, k) => {
+      const me = roundAvg(r, round);
+      return { round, me: me === null ? null : Math.round(me), room: Math.round(roomRound[k]) };
+    });
     out.set(id, {
       n: people.length,
+      timeline,
+      tags,
+      rounds,
       answered: mine.length,
       rarest,
       againstMajority: { count: against, of: mine.length },

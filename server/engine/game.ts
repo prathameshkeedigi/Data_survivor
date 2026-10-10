@@ -383,7 +383,8 @@ export class Game {
   }
 
   /** All players' answers count towards shares; only active players are ranked. */
-  roundRanking(round: number, keep?: number): { ranked: RankedPlayer[]; suggestedKeep: number; tiedAtCutoff: number } {
+  /** Every player's round score and total answer time (skips count as the full timer). */
+  private roundScores(round: number): Map<string, { score: number; timeMs: number }> {
     const qids = this.roundQids(round);
     const ids = this.s.joinOrder;
     const total = new Map<string, number>(ids.map((id) => [id, 0]));
@@ -397,9 +398,26 @@ export class Game {
         time.set(id, time.get(id)! + (ans[id]?.ms ?? duration));
       }
     }
-    const ranked = ids
+    return new Map(ids.map((id) => [id, { score: total.get(id)! / qids.length, timeMs: time.get(id)! }]));
+  }
+
+  /** After a lock: scores of everyone who was in the race, and of those who survived (for the projector histogram). */
+  roundDistribution(round: number): { scores: number[]; survivorScores: number[]; cutoff: number | null } | null {
+    const lock = this.s.locks[round];
+    if (!lock) return null;
+    const all = this.roundScores(round);
+    const scores = Object.entries(lock.preLock)
+      .filter(([, status]) => status === "active")
+      .map(([id]) => all.get(id)!.score);
+    const survivorScores = lock.survivors.map((id) => all.get(id)!.score);
+    return { scores, survivorScores, cutoff: survivorScores.length ? Math.min(...survivorScores) : null };
+  }
+
+  roundRanking(round: number, keep?: number): { ranked: RankedPlayer[]; suggestedKeep: number; tiedAtCutoff: number } {
+    const all = this.roundScores(round);
+    const ranked = this.s.joinOrder
       .filter((id) => this.s.players[id].status === "active")
-      .map((id) => ({ playerId: id, score: total.get(id)! / qids.length, timeMs: time.get(id)! }))
+      .map((id) => ({ playerId: id, score: all.get(id)!.score, timeMs: all.get(id)!.timeMs }))
       .sort((a, b) => b.score - a.score || a.timeMs - b.timeMs || (a.playerId < b.playerId ? -1 : a.playerId > b.playerId ? 1 : 0));
     const suggestedKeep = this.suggestedKeep(round, ranked.length);
     const k = Math.min(keep ?? suggestedKeep, ranked.length);

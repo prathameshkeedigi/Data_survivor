@@ -34,6 +34,21 @@ function resultsView(game: Game, round: number): RoundResultsView | null {
   };
 }
 
+const BINS = 10;
+
+function histogram(game: Game, round: number): NonNullable<BaseView["survivors"]>["histogram"] {
+  const d = game.roundDistribution(round);
+  if (!d || !d.scores.length) return null;
+  const min = Math.min(...d.scores);
+  const max = Math.max(...d.scores);
+  const bin = (x: number) => (max - min < 1e-12 ? 0 : Math.min(BINS - 1, Math.floor(((x - min) / (max - min)) * BINS)));
+  const bins = new Array(BINS).fill(0);
+  const kept = new Array(BINS).fill(0);
+  for (const x of d.scores) bins[bin(x)]++;
+  for (const x of d.survivorScores) kept[bin(x)]++;
+  return { bins, kept, min: Math.round(min * 100) / 100, max: Math.round(max * 100) / 100 };
+}
+
 function sceneRound(game: Game): number | null {
   const sc = game.scene;
   return "round" in sc ? sc.round : null;
@@ -51,6 +66,7 @@ function base(game: Game, meta: ServerMeta): BaseView {
       round,
       kept: all.filter((p) => p.status === "active").length,
       eliminated: all.filter((p) => p.status === "eliminated" && p.eliminatedRound === round).length,
+      histogram: histogram(game, round),
     };
   }
   const moment = sc.type === "moment" && round !== null ? meta.moments[round] : undefined;
@@ -80,7 +96,14 @@ function base(game: Game, meta: ServerMeta): BaseView {
 
 export function screenView(game: Game, meta: ServerMeta): ScreenView {
   const sc = game.scene;
-  return { ...base(game, meta), kind: "screen", answered: sc.type === "question" ? game.answerCount(sc.qid) : 0 };
+  const view: ScreenView = { ...base(game, meta), kind: "screen", answered: sc.type === "question" ? game.answerCount(sc.qid) : 0 };
+  if (sc.type === "recap") {
+    view.recap = [1, 2, 3, 4].map((r) => {
+      const m = meta.moments[r];
+      return m && m !== "failed" ? m.screen : null;
+    });
+  }
+  return view;
 }
 
 /** Work shared by every phone in one broadcast — computed once, not 400 times. */
@@ -138,6 +161,9 @@ export function playerView(game: Game, meta: ServerMeta, playerId: string | unde
           myText: mine ? (q.options.find((o) => o.key === mine)?.text ?? null) : null,
           pctSame: mine && q.total > 0 ? Math.round((100 * q.counts[mine]) / q.total) : null,
           n: q.total,
+          dist: Object.fromEntries(
+            (Object.keys(q.counts) as (keyof typeof q.counts)[]).map((k) => [k, q.total ? Math.round((100 * q.counts[k]) / q.total) : 0]),
+          ) as Record<keyof typeof q.counts, number>,
         };
       }),
       survived: game.isRoundLocked(round) && sc.type !== "results" ? p.status === "active" : null,
