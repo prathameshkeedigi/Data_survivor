@@ -9,6 +9,9 @@ import { Game, SCENES, type GameState } from "./engine/game";
 import { cleanNickname } from "./nickname";
 import { hostView, playerView, screenView, viewContext, type ServerMeta } from "./views";
 import type { CountUpdate } from "../shared/views";
+import type { GroupsMoment, MomentCard, WrappedData } from "../shared/moments";
+import { momentForRound } from "./analytics/moments";
+import { computeWrapped, type WrappedCore } from "./analytics/wrapped";
 
 export interface Tuning {
   questionMs: number;
@@ -23,6 +26,8 @@ export interface Tuning {
   /** Per-connection token bucket. */
   rateBurst: number;
   ratePerSec: number;
+  /** Test only: make every analytics calculation throw. */
+  analyticsFault: boolean;
 }
 
 export const DEFAULT_TUNING: Tuning = {
@@ -35,6 +40,7 @@ export const DEFAULT_TUNING: Tuning = {
   maxPlayers: 800,
   rateBurst: 20,
   ratePerSec: 10,
+  analyticsFault: false,
 };
 
 type Ack = (res: unknown) => void;
@@ -92,7 +98,50 @@ export async function startServer(config: Config, tuningOverrides: Partial<Tunin
   const gameOpts = () => ({ now: Date.now, questionMs: t.questionMs, finaleMs: t.finaleMs, minSceneGapMs: t.minSceneGapMs });
   let game = new Game(gameOpts());
   const meta: ServerMeta = { rehearsal: true, joinsLocked: false, moments: {}, wrapped: () => null };
-  const hooks = { onSceneEntered: (_g: Game, _m: ServerMeta) => {} };
+  let wrappedCache: Map<string, WrappedCore> | null = null;
+
+  /** Data moments are computed as soon as a round's results freeze, so they're ready before the host needs them. */
+  function refreshAnalytics() {
+    for (const r of [1, 2, 3, 4]) {
+      if (!game.roundResults(r) || meta.moments[r] !== undefined) continue;
+      const t0 = Date.now();
+      try {
+        if (t.analyticsFault) throw new Error("injected analytics fault");
+        const m = momentForRound(game.answersTable(), r);
+        const priv = (m as { _private?: { card: (id: string) => MomentCard } })._private;
+        meta.moments[r] = { screen: m, perPlayer: (id) => (priv ? priv.card(id) : { kind: "none", reason: m.sentence }) };
+        console.log(`moment ${r} (${m.kind}) computed in ${Date.now() - t0} ms`);
+      } catch (err) {
+        console.error(`moment ${r} failed`, err);
+        meta.moments[r] = "failed";
+      }
+    }
+    const sc = game.scene;
+    if ((sc.type === "recap" || sc.type === "wrapped") && !wrappedCache) {
+      try {
+        wrappedCache = computeWrapped(game.answersTable());
+      } catch (err) {
+        console.error("wrapped failed", err);
+        wrappedCache = new Map();
+      }
+    }
+  }
+
+  meta.wrapped = (id: string): WrappedData | null => {
+    const core = wrappedCache?.get(id);
+    const p = game.getPlayer(id);
+    if (!core || !p) return null;
+    const g = meta.moments[3];
+    let map: WrappedData["map"] = null;
+    if (g && g !== "failed" && (g.screen as GroupsMoment).kind === "groups") {
+      const card = g.perPlayer(id) as MomentCard;
+      if (card.kind === "groups") map = { points: (g.screen as GroupsMoment).points, myIndex: card.index, groupLabel: card.groupLabel };
+    }
+    const status = game.winners().some((w) => w.id === id) ? "winner" : game.finalists().some((f) => f.id === id) ? "finalist" : p.status === "active" ? "survivor" : "analyst";
+    return { ...core, map, nickname: p.nickname, status };
+  };
+
+  const hooks = { onSceneEntered: (_g: Game, _m: ServerMeta) => refreshAnalytics() };
   const hostKeys = new Set<string>();
   const passwordHash = sha(config.hostPassword);
   let dirty = true;
@@ -315,6 +364,7 @@ export async function startServer(config: Config, tuningOverrides: Partial<Tunin
         case "reset":
           game = new Game(gameOpts());
           meta.moments = {};
+          wrappedCache = null;
           meta.joinsLocked = false;
           for (const s of io.of("/").sockets.values()) {
             if ((s.data as SocketData).role === "player") (s.data as SocketData).playerId = undefined;
@@ -329,6 +379,7 @@ export async function startServer(config: Config, tuningOverrides: Partial<Tunin
             return ack({ ok: false, error: "BAD_REQUEST" });
           }
           meta.moments = {};
+          wrappedCache = null;
           if (a.backup.meta?.rehearsal !== undefined) meta.rehearsal = a.backup.meta.rehearsal;
           if (a.backup.meta?.joinsLocked !== undefined) meta.joinsLocked = a.backup.meta.joinsLocked;
           afterSceneChange();

@@ -331,6 +331,17 @@ export class Game {
     return this.s.answers[qid]?.[playerId];
   }
 
+  /** Everyone's dilemma answers, for the analytics. */
+  answersTable(): Map<string, Record<string, OptionKey | null>> {
+    const table = new Map<string, Record<string, OptionKey | null>>();
+    for (const id of this.s.joinOrder) {
+      const row: Record<string, OptionKey | null> = {};
+      for (const q of DILEMMA_QUESTIONS) row[q.id] = this.s.answers[q.id]?.[id]?.option ?? null;
+      table.set(id, row);
+    }
+    return table;
+  }
+
   answerCount(qid: string): number {
     return Object.keys(this.s.answers[qid] ?? {}).length;
   }

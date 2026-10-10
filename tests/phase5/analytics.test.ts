@@ -19,7 +19,7 @@ describe("Phase 5 — analytics", () => {
   it("A1: spread — shares sum to 100% and split labels fire at the right thresholds", () => {
     const ans = fromSim(150, "favourite");
     const m = spreadMoment(ans, 1);
-    expect(m.kind).toBe("spread");
+    if (m.kind !== "spread") throw new Error("expected spread");
     for (const q of m.questions) {
       const sum = Object.values(q.pct).reduce((a, b) => a + b, 0);
       expect(sum).toBeGreaterThanOrEqual(99);
