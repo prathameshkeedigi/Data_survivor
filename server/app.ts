@@ -2,7 +2,7 @@ import express from "express";
 import { join, resolve } from "node:path";
 import type { Config } from "./config";
 
-export function createHttpApp(config: Pick<Config, "webDir">) {
+export function createHttpApp(config: Config) {
   const app = express();
   const webDir = resolve(config.webDir);
   app.disable("x-powered-by");
