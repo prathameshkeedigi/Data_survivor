@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "verify": "node scripts/check-bundle.mjs",
-    "test:fast": "vitest run --exclude tests/phase2/simulation.test.ts"
+    "test:fast": "vitest run --exclude tests/phase2/simulation.test.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "express": "^5.3.0",
