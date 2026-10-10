@@ -353,6 +353,18 @@ The GitHub CLI isn't installed. Either create an empty private repo on github.co
 
 ### 12.2 Chosen hosting (₹0): primary + hot standby
 
+**Final decision (same code everywhere, only settings differ):**
+
+| Case | Primary | Standby |
+|---|---|---|
+| **A: AWS credits available** (preferred) | AWS EC2 `t3.small`, Mumbai | Railway |
+| **B: AWS unavailable, Hostinger VPS available** | Hostinger VPS | Railway |
+| **C: neither available** | Railway | Render free |
+
+Decide by **Sunday 11 am**. Case C is deployed regardless, so it is always ready as a fallback.
+
+Case C details:
+
 | Role | Provider | Plan | Why |
 |---|---|---|---|
 | **Primary** | **Railway** (Singapore region) | Free trial: $5 one-time credit for 30 days, 1 GB RAM, shared vCPU, never sleeps | More CPU than other free tiers and no sleep. The event uses well under $1 of the credit. |
