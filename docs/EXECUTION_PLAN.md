@@ -1,207 +1,274 @@
-# DATA SURVIVOR — Understanding & Execution Plan
+# DATA SURVIVOR — Understanding & Execution Plan (v2, reviewed)
 
 **Event:** Orientation, Monday 12 October 2026
-**Plan written:** Saturday 10 October 2026, evening (about 40 hours before the event)
-**Expected audience:** up to 400 students on their own phones (we plan and test for **500**)
+**Plan written:** Saturday 10 October 2026 (about 40 hours before the event)
+**Expected audience:** up to 400 students on their own phones. **We design and test for 500.**
 **Source proposal:** [PROPOSAL_v3.md](PROPOSAL_v3.md)
+**Hosting:** done by the club leads, following `docs/DEPLOY.md`
+
+---
+
+## 0. Review log: what changed from v1 and why
+
+v1 was reviewed as if it were someone else's design for a live event. These are the problems found and how they are fixed. Section numbers refer to this document.
+
+| # | Severity | Problem in v1 | Fix (where) |
+|---|---|---|---|
+| 1 | 🔴 Critical | **Tied scores could blow up the finalist count.** Players with identical answers get identical scores. With only 64 possible answer combinations per round, a block of 15 tied players at the cutoff is likely, and "all ties survive" turns 20 finalists into 35. | Ties are broken by **answer speed** in that round (pre-announced). The host sees the tie block before locking and can override. (§5) |
+| 2 | 🔴 Critical | **Message storm.** If the server pushed an update to every screen on every answer, 400 answers would create 160,000 messages in 20 seconds. | Answer counts go **only to the host and projector**, at most twice per second. Phones receive nothing during voting except their own confirmation. (§3) |
+| 3 | 🔴 Critical | **The crash recovery didn't work on our host.** Render's disk is wiped on every restart or redeploy, so v1's "snapshot to disk" saved nothing. | The **host browser keeps a backup** (primary recovery), with an optional paid persistent disk. Strict rules: **one instance only, autoscaling off, no deploys after the final reset.** (§3, §10) |
+| 4 | 🔴 Critical | **Abuse by students.** 400 engineering students includes someone who will script 5,000 fake joins, spam answers, or open `/host`. | Join cap, join lock, a strict validator on every message, per-connection rate limits, host password from server config, and finale answer keys kept on the server only. (§3.4) |
+| 5 | 🟠 High | **Phone clocks are wrong.** A phone 30 seconds off would show a broken countdown. | The server sends **"milliseconds remaining"**, never a clock time. The server alone decides when voting closes. (§3) |
+| 6 | 🟠 High | **Projector hardware is unknown.** Projectors are often old (4:3 aspect, 1024×768) and run on a weak college laptop. Animating 400 dots as separate React components may stutter. | Layouts for 4:3 and 16:9. The room map is drawn on **Canvas**, and animations use only GPU-friendly properties. Tested on the actual projector laptop. (§7) |
+| 7 | 🟠 High | **Lost identity.** Phones that open the QR link in Instagram, Google Lens or private mode can lose their saved ID, so the player would rejoin as a stranger and lose their survival status. | Each player gets a **4-character rejoin code** on their screen ("Your code: K7QX") to type back in. (§3) |
+| 8 | 🟠 High | **The campus network may block WebSockets** (firewall or captive portal). | Socket.IO's HTTP fallback stays **on**. Fonts are bundled locally, with no Google Fonts call. Test on the campus network itself. (§3, §8) |
+| 9 | 🟠 High | **The data moment might not be ready on cue.** If calculation starts only when the host presses "show", the projector sits blank. | Calculation starts **as soon as voting closes**, while Results/Survivors are on screen. The scene can't start until results are ready. After 3 seconds, the host is offered the fallback image. (§3) |
+| 10 | 🟠 High | **Accidental key presses on stage.** Pressing Space twice skips a scene, and Reset during the game would wipe it. | Scene changes are rate-limited (one per 600 ms). Destructive actions (lock survivors, reset, end game) need a confirmation. On-screen buttons work as well as keys. (§3.3) |
+| 11 | 🟡 Medium | **No rule for late joiners**, who would break round 1 scoring. | Joining as an active player is allowed until round 1 voting closes. After that, new joiners enter Analyst Mode. (§5) |
+| 12 | 🟡 Medium | **Phones would download the projector code** (heavy animation library) for nothing. | Separate bundles per screen. The phone bundle stays at or below 150 KB gzipped. (§3) |
+| 13 | 🟡 Medium | **The share image could fail on iPhone.** HTML-to-image libraries often drop fonts on Safari, and in-app browsers lack Web Share. | The image is drawn directly with Canvas. If sharing isn't supported, "long-press to save image" is shown instead. (§6) |
+| 14 | 🟡 Medium | **Single host device.** If the host laptop dies, nobody can advance the game. | **Two host sessions** can be logged in at the same time (main + backup phone). (§3.3) |
+| 15 | 🟡 Medium | **Unclear deploy owner.** I can't load test until the leads deploy. | Leads deploy a **first version by Sunday 11 am**. The schedule depends on this. (§9) |
+| 16 | 🟢 Low | Analyst players' role in the finale wasn't defined. | They can play the finale for fun ("Play along") but are never ranked. (§5) |
+
+**Verified vendor facts (10 Oct 2026):**
+- Supabase free realtime limit is **200 concurrent connections**, which confirms we shouldn't use it.
+- Render free instances sleep after 15 minutes and lose files on restart.
+- Render Starter is **$7/month, 0.5 CPU, 512 MB, never sleeps**. That is plenty: we need under 100 MB of RAM, and bandwidth for the event is about 0.3 GB.
 
 ---
 
 ## 1. What we are building
 
-Students in the hall scan a QR code and enter a nickname. They answer dilemma questions on their phones while the projector shows what the room chose.
+Students scan a QR code and enter a nickname. They answer dilemma questions on their phones, and the projector shows what the room chose.
 
-**How the game works:**
-- 4 rounds of 3 questions, each with 4 options (A–D). There are no right answers.
-- After each round the server gives every player a **rarity score**: the less common your answers, the higher your score. The top N survive.
-- Eliminated players go to **Analyst Mode**. They keep answering, and their answers still feed the charts, but they can't win.
-- After each round the projector shows a **data moment** made from the real answers:
-  1. **Spread:** how split the room was
-  2. **Patterns:** which answers go together
-  3. **Groups:** a map of the room, where each dot is a person
-  4. **Prediction:** can a computer guess your answer, compared with a lazy guess
-- **Finale:** 15–20 finalists answer 3 questions that have correct answers, plus a tie-breaker. The top 5–10 win chocolates.
-- **Ending:** a "Room Decoded" recap on the projector, then each person gets a **Spotify Wrapped-style story** on their phone with a shareable card.
+- **4 rounds × 3 questions**, 4 options each, no right answers. The less common your answers, the higher your **rarity score**. The top N players survive.
+- **Eliminated players** go to **Analyst Mode**. They keep answering and their answers still feed the charts, but they can't win.
+- After each round there is a **data moment** on the projector built from the real answers:
+  1. **Spread:** how split was the room?
+  2. **Patterns:** which answers go together?
+  3. **Groups:** a map of the room, one dot per person
+  4. **Prediction:** can a computer guess your answer better than a lazy guess?
+- **Finale:** about 20 finalists, 3 objective questions plus a tie-breaker, **10 winners** (hard cap 20).
+- **Ending:** a "Room Decoded" recap on the projector, then a personal **Wrapped story** on every phone.
 
-**Three screens, one website:**
-
-| URL | Who uses it | Device |
+| URL | Who | Device |
 |---|---|---|
-| `/` (play) | Every student | Phone |
-| `/screen` | The projector | Laptop on HDMI |
-| `/host` | The presenter / tech team (password protected) | Second laptop or tablet |
+| `/` | Every student | Phone |
+| `/screen` | Projector | Laptop on HDMI |
+| `/host` | Presenter + tech team (password) | Laptop/tablet + backup phone |
 
 ---
 
-## 2. The constraint that drives every decision
+## 2. Guiding constraint
 
-There are 2 days, not the 6 weeks the proposal assumed. This means:
-
-1. **Simple architecture beats elegant architecture.** We need as few moving parts as possible, so there are fewer things to break.
-2. **Testing is part of the build.** Load testing and a real rehearsal are fixed blocks of time in the schedule.
-3. **Scope comes in tiers.** If time runs out we drop from the bottom tier, never from testing.
+There are 2 days, not 6 weeks. That means:
+1. **The fewest moving parts.** One server, one URL, no database service.
+2. **Testing is booked in the schedule** and never squeezed.
+3. **Scope comes in tiers (§4).** When time runs short, the lowest tier goes. Testing never does.
 
 ---
 
-## 3. Architecture (and why it differs from the proposal)
-
-The proposal suggested Next.js + Supabase. **I am changing this.** Here is the reasoning:
-
-| Concern | Next.js + Supabase | **Chosen: one Node server + Socket.IO** |
-|---|---|---|
-| 400 live phones | Supabase's free tier caps realtime connections at about 200, so it would fail at our audience size | One Node process easily holds 1,000+ sockets |
-| Moving parts | Frontend host + database + realtime + row-level security rules | **One server, one URL, one deploy** |
-| Debugging on stage | Several dashboards | One log stream |
-| Beginner-friendly | Security rules are easy to get subtly wrong | Phones only ever receive what the server chooses to send |
-
-### The design
+## 3. Architecture
 
 ```
- Phones (400) ──┐
- Projector ─────┼── WebSocket (Socket.IO) ──►  ONE Node.js server
- Host laptop ───┘                              ├─ game state lives in memory (the single source of truth)
-                                               ├─ scoring + analytics run here
-                                               ├─ snapshot to disk every few seconds
-                                               └─ serves the website (static files)
+ Phones (≤500) ──┐
+ Projector ──────┼── Socket.IO (WebSocket, with HTTP fallback) ──►  ONE Node.js process
+ Host ×2 ────────┘                                                  ├─ game state in memory (single source of truth)
+                                                                    ├─ scoring + analytics
+                                                                    └─ serves the website files
 ```
 
-**Key principles:**
-
-- **The server owns everything:** the timer, scores, who survived, and which scene is showing. Phones and the projector only display what the server sends.
-- **"Render from snapshot":** every client, on connect or reconnect, gets the full current state for itself and draws it. A phone that locks, loses signal or refreshes comes back to the right screen. This one rule fixes most live-event bugs.
-- **Answers are idempotent.** Each answer has an ID, and pressing twice stores it once. Answers that arrive after voting closes are rejected, and the phone says so politely.
-- **Players keep a saved token.** A random ID is stored on the phone, so a refresh never creates a duplicate player.
-- **Privacy is built into the data shape.** The projector gets only totals. A phone gets totals plus its own data. Raw answers never leave the server.
-- **Small payloads.** The phone page should be under about 150 KB gzipped, and messages are tiny JSON, so it works on weak 4G.
-
-### Stack
+### 3.1 Stack
 
 | Layer | Choice |
 |---|---|
 | Server | Node 22 + TypeScript + Express + Socket.IO |
-| Frontend | Vite + React + TypeScript + Tailwind CSS |
-| Animation | Framer Motion (projector); CSS transitions (phone, to keep it light) |
-| Charts | Hand-written SVG with `d3-scale`/`d3-shape` helpers (full control, no generic look) |
-| Analytics | Plain TypeScript in `server/analytics/`, using our own small PCA, k-means and k-nearest-neighbours (about 400×48 numbers, so it runs in milliseconds), with fixed random seeds |
-| Tests | Vitest (logic) + a custom bot swarm script (load) |
-| Hosting | **Render** (Starter plan, about $7, always on, supports WebSockets). Railway is the backup option. |
+| Validation | `zod` schema on **every** incoming message |
+| Frontend | Vite + React + TypeScript + Tailwind, **one separate bundle per screen** |
+| Animation | Framer Motion (projector only). The phone uses CSS transitions. |
+| Charts | Hand-written SVG (bars, ribbons) + **Canvas** (room map, 500 dots) |
+| Analytics | Plain TypeScript: our own PCA, k-means and k-nearest-neighbours with fixed random seeds. The data is about 500×48 numbers, so it takes milliseconds. |
+| Tests | Vitest (logic) + bot swarm script (load) |
+| Hosting | Any always-on Node host with WebSockets. Recommended: **Render Starter** (verified above). **Exactly 1 instance, autoscaling OFF.** |
 
-### Crash safety
+### 3.2 Core rules (these are what prevent failures)
 
-- The server writes a state snapshot to disk every 5 seconds and reloads it on restart.
-- The **host dashboard also keeps a copy** of the latest snapshot in the browser. If the server restarts with an empty disk, the host clicks **Restore** and the game continues from that point.
-- A **manual override** lets the host type the survivor cutoff by hand.
+1. **The server owns all truth:** scene, timer, scores, survivors. Clients only display it.
+2. **Render from snapshot.** On every connect or reconnect, the client gets the full state it is allowed to see and draws it. Refreshing any screen is always safe.
+3. **Answers are idempotent.** One answer per player per question, so a second tap just returns the stored answer. Answers count only if the question is open, the player is allowed to answer it, and the option is valid.
+4. **Timer as remaining time.** The server sends `msRemaining`. Phones count down locally from that and resync on every message. Voting closes **only** when the server's timer fires.
+5. **Throttled updates.** During voting, only the host and projector receive the answered count, at most twice per second. Phones receive only their own confirmation.
+6. **Precomputed data moments.** Analytics run the moment voting closes. Their status is `computing`, then `ready` or `failed`. The projector can only enter a data-moment scene when the status is `ready`, and otherwise the host is offered the fallback image.
+7. **Messages are sorted into rooms:**
+   - `all`: scene changes
+   - `screen`: totals and charts
+   - `host`: control data
+   - `player:<id>`: personal results
+   Raw answers never leave the server.
+8. **Identity has a fallback.** A random token is saved on the phone, and a **4-character rejoin code** is shown on screen in case the token is lost.
+9. **Node runs one thing at a time.** No two answers can ever be processed at the same moment, so there are no race conditions. This is a key reason to use one process.
+
+### 3.3 Host controls
+
+- Big on-screen buttons **and** keys: Space = next, ← = back, E = extras, F = fallback image, P = pause timer.
+- Scene changes are rate-limited to one per 600 ms, so a double press does nothing.
+- Confirm dialogs on: **Lock survivors**, **Reset game**, **End game**, **Reveal winners**.
+- Two host sessions can be logged in at once, and both see the same live view.
+- Before revealing winners, the host sees the list and can hide a nickname.
+- The host browser saves a **backup of the full state every 5 seconds**. **Restore** pushes it back to a restarted server.
+- **Manual override:** the host can type in the survivor count.
+
+### 3.4 Security & abuse protection
+
+| Threat | Protection |
+|---|---|
+| Someone opens `/host` | Password set in the hosting dashboard (never in code). Host messages need a signed session. |
+| A script floods fake joins | Hard cap of 800 players. The host can **lock joining**. Joins are rate-limited per connection. The cap is **not** per IP, because 400 phones on venue Wi-Fi share one IP address. |
+| Answer spam / malformed messages | `zod` validation, per-connection rate limit, invalid messages dropped and logged. |
+| Peeking at finale answers in the browser's code | Answer keys exist **only on the server** and are never sent before the reveal. |
+| Offensive nicknames | 16-character limit, a profanity filter, and nicknames only ever shown on the projector after host approval (winners). |
+| Script injection via nickname | React escapes text by default. Never use raw HTML. |
+| Someone opens `/screen` on their own phone | Harmless: it shows only what the projector shows. |
+
+### 3.5 Crash safety
+
+| Situation | Effect | Recovery |
+|---|---|---|
+| A phone refreshes or loses signal | Nothing lost | Token or rejoin code restores it |
+| Projector/host refresh | Nothing lost | Returns to the current scene |
+| Server process crashes | Memory lost | Host clicks **Restore** (from the browser backup, ≤5 s old). Phones reconnect automatically. |
+| Someone redeploys during the event | Same as a crash | **Rule: no deploys after Monday's final reset** |
+| Hosting provider down | Game stops | Paper/Google Form fallback (§10) |
 
 ---
 
 ## 4. Scope tiers
 
-| Tier | What | Status if time runs out |
+| Tier | Content | If time runs out |
 |---|---|---|
-| **P0: the game works** | Join, nickname, 12 questions, server timer, host controls, projector bars, rarity scoring, survivors, Analyst Mode, finale + tie-breaker, winners, reconnect | Never cut |
-| **P1: the "wow"** | Data Moment 1 (Spread) and 4 (Prediction), phone personal cards, Wrapped story (5 cards) + share image, Room Decoded recap | Cut only in an emergency |
-| **P2: the extras** | Data Moment 2 (ribbons) and 3 (room map), "You are here" dot on the phone | Fallback: show a simple bar chart version |
-| **P3: nice-to-have** | Margin of error, shuffle check badge, luck-check replay, "guess the popular option" tap, histogram with cutoff line | First to go |
-
-I expect to deliver P0–P2, and P3 if testing goes well.
+| **P0: the game works** | Join + rejoin code, 12 questions, server timer, host controls, projector question + bars, rarity scoring + tie-break, survivors, Analyst Mode, finale + tie-breaker, winners, abuse protection, host backup/restore | Never cut |
+| **P1: the wow** | Data Moment 1 (Spread) + 4 (Prediction), phone personal cards, Wrapped story + share image, recap | Emergency cut only |
+| **P2** | Data Moment 2 (ribbons), 3 (room map), "You are here" | Fallback: bar-only version |
+| **P3** | Margin of error, shuffle-check badge, luck-check replay, "guess the popular option" tap, score histogram | First to go |
 
 ---
 
-## 5. Game rules (filled-in details)
+## 5. Game rules
 
-### Rarity score (per proposal §8)
-- For each question, the share of an option is `p = (count + 1) / (total + 4)`. The "+1" smoothing stops tiny groups from producing extreme scores.
-- The player's score for that question is `−log(p)`, and the round score is the average of the three questions.
-- Shares use **all** players' answers (active + Analyst). **Only active players are ranked.**
-- **Skipped question:** the player gets half of the room's average rarity on that question, so skipping never helps.
-- **Ties at the cutoff:** everyone tied at the cutoff score survives. Survivor count may go slightly over target; nobody gets eliminated by a coin flip.
+### Rarity score
+- Share of an option = `p = (count + 1) / (total + 4)`. The +1 smoothing stops a very small group from producing an extreme score.
+- Per-question score = `−ln(p)`. Round score = mean of the 3 questions.
+- Shares come from **all** players' answers. **Only active players are ranked.**
+- **Skipped question:** the player gets half the room's average rarity for it, so skipping never pays.
 
-### Survivor targets (scaled for 400)
-The host sees a **suggested** cutoff and can change it before locking:
+### Ranking & ties (fixes review item 1)
+Order: **round score**, then **faster total answer time in that round** (server-measured), then player ID as a last deterministic resort. The host is told in advance to say *"ties are broken by speed"*.
+- The host screen shows the suggested cutoff **and** how many players have exactly the score at the cutoff. The host can move the cutoff before locking.
 
-| After | Keep | At 400 players | At 150 players |
+### Who can join, and when
+- Players join as **active** until round 1 voting closes. After that they join in **Analyst Mode**.
+- Analyst players can "play along" in the finale but are never ranked.
+
+### Survivor targets (suggested; the host can change them)
+
+| After | Keep | At 400 | At 150 |
 |---|---|---|---|
 | Round 1 | ~65% | ~260 | ~100 |
 | Round 2 | ~60% | ~155 | ~60 |
 | Round 3 | ~45% | ~70 | ~30 |
-| Round 4 | fixed number | **20 finalists** | 15–20 |
-| Finale | fixed number | **10 winners** (hard cap 20) | 5–10 |
+| Round 4 | fixed | **20 finalists** | 15–20 |
+| Finale | fixed | **10 winners** (cap 20) | 5–10 |
 
 ### Finale ranking
-Players are ranked by most correct answers, then by least total time on their correct answers, then by the tie-breaker question.
+Most correct answers, then least total server-measured time on correct answers, then the tie-breaker question, then a spare tie-breaker.
 
-### Winner names on the projector
-Winners are the **only** names ever shown on the projector. The host sees the list first and can hide an inappropriate nickname with one click before revealing it. Nicknames are also filtered for profanity and limited to 16 characters.
-
-### Known weakness (from the proposal)
-A player who always picks the option they think is least popular can game the rarity rule. Live counts are hidden until voting closes, which makes this hard. The simulation includes a "sneaky bot", and I'll report how far it gets.
+### Known weakness
+Always picking "the option that seems rarest" can game the rarity rule. Live counts stay hidden while voting is open. The simulation includes this "sneaky bot", and the results will be reported to the leads.
 
 ---
 
-## 6. Spotify Wrapped-style summary
+## 6. Wrapped summary (phone)
 
-A full-screen story on the phone. Tap to advance, with a progress bar at the top like Instagram stories:
+Story format: tap to advance, a progress bar at the top, one idea per card. Every card shows "Based on this room of n = X".
 
-1. **Intro:** "You answered 12 questions. Here's what the room learned about you."
-2. **Your rarest choice:** "Only 7% of the room (28 people) chose this."
-3. **You vs the room:** "You went against the most common answer on 7 of 12 questions."
-4. **Your place on the map:** a small room map with your dot highlighted.
-5. **Your thinking style:** a playful label (Evidence Hunter / Experimenter / Independent Builder / Systems Thinker / Strategic Planner, or "A bit of everything"), with the 3 answers that support it.
-6. **Share card:** a 1080×1920 image (fits an Instagram story) with nickname (optional toggle), label, one real stat and club branding, saved with the phone's native Share button.
+1. **Intro:** "12 questions. Here's what the room learned."
+2. **Rarest choice:** "Only 7% (28 people) chose this."
+3. **You vs the room:** "You went against the most popular answer on 7 of 12."
+4. **Your place on the map:** a small map with your dot.
+5. **Thinking style:** a playful label from option tags, plus the 3 answers behind it, or "A bit of everything".
+6. **Share card:** a 1080×1920 image **drawn with Canvas**, shared via the Web Share button. If sharing isn't supported, "long-press to save" is shown. The nickname on the card is optional.
 
-The labels come from simple tags on each option (each option is tagged as evidence, experiment, independent, systems or strategic). The tag mapping lives in one config file that the club leads should review. Every card says "Based on this room of n = X".
-
----
-
-## 7. UI direction (avoiding "AI slop")
-
-What makes a page look like generic AI output: purple-blue gradients everywhere, emoji in every heading, cards inside cards, a lot of small grey text, and no clear hierarchy.
-
-What we'll do instead:
-
-- **One strong identity:** a near-black background, **one** bright club accent colour, and white type. Data colours follow a fixed, colour-blind-safe set of 4 (one per option A–D) that stays the same on every screen. Option B on the phone is the same colour as B on the projector.
-- **Type does the work:** big, bold, tight headings (a grotesque font such as *Space Grotesk* or *Inter Tight*). Numbers are huge ("18%"). There is one idea per screen.
-- **Phone first:** answer buttons fill the screen width and are at least 64 px tall, reachable with a thumb. There is no scrolling during a question. The page works one-handed in a dark hall at 20% brightness.
-- **Projector:** readable from the back row. Question text is at least 48 px, and charts are big and simple. Every chart shows **n = …**
-- **Motion with purpose:** bars grow from zero, dots glide into the map, and Wrapped cards slide. Nothing bounces for decoration.
-- **States that feel alive:** waiting screens show "Waiting for the host… 312 people in the room" instead of a spinner.
-
-**What I need from you:** the club logo (SVG/PNG) and club colours. If we don't have them, I'll pick something tasteful and you can swap it later.
+The option-to-tag mapping lives in `shared/` for the leads to review.
 
 ---
 
-## 8. Testing plan (the most important section)
+## 7. UI direction (not AI slop)
 
-### 8.1 Automated logic tests (Vitest)
-- Rarity maths on hand-checked examples, shares sum to 100%, scores are never negative, and the same seed gives the same result.
-- Ties, skipped answers, a room of 1 person, and a room where everyone picks the same option.
-- `simulateAudience(n, scenario, seed)` with the proposal's 7 scenarios. All 4 data moments must produce a valid result, or a valid "no pattern found" screen, in every scenario.
-- An elimination simulation over many runs per scenario at n = 150 and n = 400 to check the finalist counts.
+**Avoid:** purple-blue gradients everywhere, emoji in headings, cards nested in cards, small grey text, generic dashboards.
 
-### 8.2 Load test (bot swarm)
-A script launches **500 fake phones** against the **deployed** server (not localhost):
-- All of them join within 60 seconds and answer within a 20-second window.
-- 10% double-tap, 10% drop their connection mid-question and reconnect, and 5% answer late.
-- The projector refreshes mid-round, and the host laptop refreshes mid-round.
-- **Pass:** zero lost answers, zero duplicate answers, every bot's final state matches the server, and the server stays under 70% CPU.
+**Do:**
+- **Theme:** near-black background, **one** club accent colour, and white type.
+- **Option colours:** a fixed, colour-blind-safe A–D colour set, identical on phone and projector. B is always the same colour.
+- **Type:** bold grotesque type, **bundled locally**. Numbers are huge, and there is one idea per screen.
+- **Phone:**
+  - Answer buttons are full-width and at least 64 px tall, with no scrolling during a question.
+  - Readable in a dark hall at low brightness. Works at 360 px width and with large system fonts.
+  - The tapped option stays clearly marked ("Locked in: B").
+- **Projector:**
+  - Question text at least 48 px, and **n = …** on every chart.
+  - Layouts for **4:3 (1024×768) and 16:9 (1920×1080)**.
+  - The map is drawn on Canvas, and animations use only `transform`/`opacity`, so they stay smooth on a weak laptop.
+- **Motion:** bars grow, dots glide, cards slide. Nothing bounces for decoration.
+- **Waiting screens:** show live-feeling copy ("312 people in the room") instead of a spinner.
 
-### 8.3 Device check
-- Real phones: Android Chrome (cheap and flagship), iPhone Safari, Samsung Internet, and the browser inside Instagram/WhatsApp (people will open the QR link there).
-- Check small screens (360 px wide), dark mode, large system font, and a 3G-throttled connection.
+**Needed:** club logo + colours. If we don't get them, a tasteful default goes in, easy to swap later.
 
-### 8.4 Full rehearsal (required)
-- **20–40 club members on their own phones**, the full game start to finish with a stopwatch, the real host, and the real projector laptop.
-- Bot swarm running at the same time to push the room to about 400.
-- Every rehearsal screen shows a **SIMULATED DATA** watermark, which is removed only when the host starts the real game (and the database is reset).
+---
+
+## 8. Testing plan
+
+### 8.1 Logic (Vitest)
+- Rarity on hand-checked examples, shares summing to 100%, scores never negative, the same seed giving the same output.
+- Edge cases:
+  - 1 player
+  - everyone picking the same option
+  - all answers skipped
+  - ties at the cutoff
+  - late joiners
+  - duplicate answers
+  - answers after close
+  - answers to the wrong question
+- `simulateAudience(n, scenario, seed)` with all 7 scenarios from the proposal. Every data moment returns a valid result **or** a valid "no pattern" result.
+- An elimination simulation at n = 150 and n = 400, checking finalist counts and the sneaky bot.
+
+### 8.2 Load test (500-bot swarm, against the **deployed** URL)
+- 500 bots join within 60 seconds and answer within 20 seconds.
+- Included: 10% double-taps, 10% disconnect-and-reconnect mid-question, 5% late answers, plus 50 garbage/malicious messages.
+- The projector and host refresh mid-round. A **server restart + host Restore** is tested once.
+- **Pass:**
+  - 0 lost and 0 duplicated answers
+  - every bot's final state matches the server
+  - CPU under 70%
+  - phones see the scene change within 1 second
+
+### 8.3 Devices & networks
+- Browsers: Android Chrome (budget + flagship), iPhone Safari, Samsung Internet, and the **in-app browsers** of Instagram, WhatsApp and Google Lens.
+- Phone settings: 360 px width, large system font, 3G throttling, screen lock and wake mid-question.
+- **The campus Wi-Fi and the venue's projector laptop**, tested before the event.
+
+### 8.4 Rehearsal (required)
+20–40 club members on real phones, the real host and the real projector laptop, with the bot swarm adding about 400 more players. Timed with a stopwatch. A **SIMULATED DATA** watermark shows until the final reset.
 
 ### 8.5 Go / No-Go (Sunday night)
-1. 500-bot test passes on the deployed URL.
-2. A rehearsal finishes in the planned time.
-3. A projector or phone refresh returns to the correct screen.
-4. No nicknames appear on the projector except approved winners.
-5. Every data moment has a fallback image, switched with one key (F).
+1. The 500-bot test passes on the deployed URL.
+2. A rehearsal finishes within the planned time.
+3. Refreshing any screen, and a server restart + Restore, both recover correctly.
+4. No nickname appears on the projector except host-approved winners.
+5. Every data moment has a fallback image, switched with F.
+6. The abuse tests are rejected cleanly.
 
-If any item fails, we drop the relevant P2/P3 features until it passes.
+If an item fails, we cut P2/P3 until it passes.
 
 ---
 
@@ -209,82 +276,76 @@ If any item fails, we drop the relevant P2/P3 features until it passes.
 
 | When | What | Who |
 |---|---|---|
-| **Sat night** | Repo, server, game engine, scoring + tests, phone join/answer screens, host controls, projector bars. **First deploy tonight** so hosting problems show up early. | Me (Claude) + you set up hosting |
-| **Sun morning** | Data moments 1–4, analytics tests across all 7 scenarios, Analyst Mode, finale, winners | Me; you test on your phone as features land |
-| **Sun midday** | Wrapped story + share image, recap, design polish, fallback images | Me; you collect logo/colours and the leads review the wording |
-| **Sun ~3 pm** | **500-bot load test on the deployed URL**, fix issues | Me + you |
-| **Sun ~5 pm** | **Rehearsal with club members** (real phones, real host) | Everyone |
-| **Sun ~7 pm** | Fixes from the rehearsal, then **CODE FREEZE**. Go/No-Go check. | Me + you |
-| **Sun night** | Print QR codes (large, plus a short backup URL), host script cheat-sheet, charge the laptops | You + host |
-| **Mon, 2 h before** | Venue check: projector resolution, Wi-Fi vs mobile data, open `/screen` and `/host`, warm up the server, reset the database | You + host |
+| **Sat night** | Server, game engine, scoring + tests, phone join/answer, host controls, projector question + bars. `DEPLOY.md` written. | Me (Claude) |
+| **Sat night** | Push the repo to GitHub, add the leads, and ask the leads to **deploy by Sun 11 am** | You |
+| **Sun morning** | Data moments 1–4 + tests in all scenarios, Analyst Mode, finale, winners, abuse protection | Me; you test on your phone |
+| **Sun 11 am** | First deploy live (leads). The URL is shared with us. | Leads |
+| **Sun midday** | Wrapped + share image, recap, polish, fallback images | Me; you get logo/colours, leads check wording |
+| **Sun ~3 pm** | **500-bot load test on the live URL** | Me + you |
+| **Sun ~5 pm** | **Rehearsal** (real phones + bots) | Everyone |
+| **Sun ~7 pm** | Fixes, **CODE FREEZE**, final deploy, Go/No-Go | Me + you + leads |
+| **Sun night** | Print QR codes plus a short URL, host cheat-sheet, Google Form fallback ready, laptops charged | You + host |
+| **Mon, 2 h before** | Venue check on the projector laptop + campus network. **Final reset.** After this: **no deploys.** | You + host |
 
-After code freeze, nothing changes except copy typos.
+**If the leads can't deploy by Sunday 3 pm,** we load-test against a temporary deployment from your own account, so testing doesn't slip.
 
 ---
 
-## 10. Event-day runbook (short version; the full one goes in `docs/RUNBOOK.md`)
+## 10. Event-day runbook (full version in `docs/RUNBOOK.md`)
 
-**Network:** venue Wi-Fi often fails with 400 phones. The host's first line is *"Use mobile data if the Wi-Fi is slow."* The page is light enough that 4G is fine.
+**Before doors open:**
+- Projector laptop: `/screen` in full screen (F11), **Do Not Disturb on**, sleep/screensaver off, browser zoom 100%, charger plugged in.
+- Host: `/host` on the main device, with the backup host logged in on a phone.
+- Open the server dashboard and confirm 1 instance is running.
 
-**Laptops:** the projector laptop shows only `/screen` (full screen, F11). The host uses a separate device for `/host`. Each laptop gets its own hotspot as a backup.
+**Host's first line:** *"If the Wi-Fi is slow, switch to mobile data."* The phone page is tiny, so 4G is fine.
 
 **If something breaks:**
 
-| Problem | What to do |
+| Problem | Action |
 |---|---|
-| A few phones are stuck | "Refresh the page." Their saved token restores them. |
-| Projector frozen | Refresh `/screen`. It returns to the current scene. |
-| A data moment looks wrong | Press **F** to show the fallback image and say "here's what this looked like in rehearsal". |
+| A few phones are stuck | "Refresh the page." If needed, they enter their rejoin code. |
+| Projector frozen | Refresh `/screen`. |
+| A data moment looks wrong or is late | Press **F** for the fallback image and say "here's what this looked like in rehearsal". |
 | Server restarted | Host clicks **Restore**. |
-| Total failure | Switch to the backup Google Form + printed slides version: a show of hands for the dilemmas and the finale on paper. This keeps the event going. |
+| Total failure | Google Form + printed slides version, prepared Sunday night. |
 
 ---
 
-## 11. Privacy (from the proposal, enforced in code)
+## 11. Privacy
 
-- Nickname only: no email, phone number or student ID.
-- The join screen says: *"Your answers are anonymous and only used for live group charts. Data is deleted after the event."*
-- Groups or tables with fewer than 5 people are hidden.
-- Raw answers are deleted after the event (a one-click export is available beforehand if the leads want anonymous totals).
+- Nickname only: no email, phone number or ID.
+- Shown when joining: *"Your answers are anonymous and only used for live group charts. Data is deleted after the event."*
+- Groups with fewer than 5 people are hidden, and no nicknames appear in any data moment.
+- After the event: an optional export of anonymous totals, then the raw data is deleted. Restarting the server also wipes it.
 
 ---
 
 ## 12. Repository & access
 
-- Repo: `data-survivor`, **private** on GitHub, owned by you (or a club organisation account, if one exists).
-- Club leads are added as collaborators. **I need their GitHub usernames.**
+- Private GitHub repo `data-survivor`. The club leads are added as collaborators. **Usernames needed.**
 - Structure:
 
 ```
 data-survivor/
-  server/       game engine, socket handlers, analytics, scoring
-  web/          React app: play, screen, host
-  shared/       question bank, types, tag mapping (leads review this)
-  scripts/      bot swarm load test, audience simulator
-  docs/         proposal, this plan, runbook, host script
+  server/    engine, socket handlers, analytics, scoring
+  web/       React: play, screen, host (separate bundles)
+  shared/    questions, types, option tags (leads review)
+  scripts/   bot swarm, audience simulator
+  docs/      proposal, this plan, DEPLOY, RUNBOOK, host script
 ```
 
-The GitHub CLI isn't installed on this laptop yet. You'll either install it (`winget install GitHub.cli`, then `gh auth login`) or create the repo on github.com and I'll push to it.
+The GitHub CLI isn't installed. Either create an empty private repo on github.com and send me the URL, or run `winget install GitHub.cli` then `gh auth login`.
 
 ---
 
-## 13. How you'll learn while we build
+## 13. Open decisions
 
-You said you haven't built a live site before. Here is how you'll learn along the way:
-
-- Each chunk I build comes with a short "what this does and why" note in plain words.
-- You'll run things yourself: start the server, open three tabs (phone, screen, host) and play a game alone.
-- You'll own **hosting, the rehearsal and the event-day runbook**. These are the parts where a human in the room matters most.
-- After the event, the repo is a good portfolio project. The realtime + analytics design is something you'll be able to explain in interviews.
-
----
-
-## 14. Open decisions (need answers soon)
-
-1. **GitHub usernames** of the club leads, and personal account or club org?
-2. **Hosting budget:** about $7 for one month of Render Starter. Can the club cover it? The free tier sleeps and is not safe for a live event.
-3. **Event time on Monday**, and can we do a rehearsal Sunday ~5 pm?
-4. **Club logo + colours**.
-5. **Normal (~25 min) or short (~20 min) mode?** I recommend short mode with extras skippable live.
-6. **Winners:** 10 is the default. Confirm.
-7. **Who is the host/presenter?** They need to try the host controls at the rehearsal.
+1. GitHub usernames of the leads, and whether the repo goes under a personal account or a club organisation.
+2. Can the leads deploy by Sunday 11 am, and who is the deploy contact on Monday?
+3. Event start time Monday, and rehearsal Sunday ~5 pm?
+4. Club logo + colours.
+5. Normal (~25 min) or short (~20 min) mode? **Recommended: short**, with extras skippable live.
+6. 10 winners? (default)
+7. Who is the host/presenter?
+8. Is it OK to announce **"ties are broken by speed"**?
