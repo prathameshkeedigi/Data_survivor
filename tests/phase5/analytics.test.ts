@@ -77,19 +77,35 @@ describe("Phase 5 — analytics", () => {
   it("A4: prediction never uses a person's own answer (leave-one-out) and the lazy baseline is right", () => {
     // Earlier answers and q12 are independent random draws: there is nothing to learn.
     // A model that peeked at a person's own q12 would score ~100%; an honest one ~25%.
+    // Checked over 100 random rooms: no leak (smart ≈ chance) and false "it learned something" alarms ≤ 10%.
     const keys: OptionKey[] = ["A", "B", "C", "D"];
-    const rand = mulberry32(11);
-    const rows: Record<string, OptionKey>[] = [];
-    for (let i = 0; i < 200; i++) {
-      const r: Record<string, OptionKey> = {};
-      DILEMMA_QUESTIONS.slice(0, 11).forEach((q) => (r[q.id] = keys[Math.floor(rand() * 4)]));
-      r.q12 = keys[Math.floor(rand() * 4)];
-      rows.push(r);
+    const randomRoom = (seed: number) => {
+      const rand = mulberry32(seed * 31);
+      const rows: Record<string, OptionKey>[] = [];
+      for (let i = 0; i < 200; i++) {
+        const r: Record<string, OptionKey> = {};
+        DILEMMA_QUESTIONS.slice(0, 11).forEach((q) => (r[q.id] = keys[Math.floor(rand() * 4)]));
+        r.q12 = keys[Math.floor(rand() * 4)];
+        rows.push(r);
+      }
+      return rows;
+    };
+    let alarms = 0;
+    let smartSum = 0;
+    let lazySum = 0;
+    for (let seed = 1; seed <= 100; seed++) {
+      const r = predictionMoment(table(randomRoom(seed)), "q12", 4, seed);
+      if (r.kind !== "prediction") throw new Error("expected prediction");
+      expect(r.smartPct).toBeLessThan(45);
+      if (r.beatsLazy) alarms++;
+      smartSum += r.smartPct;
+      lazySum += r.lazyPct;
     }
+    expect(alarms).toBeLessThanOrEqual(10);
+    expect(smartSum / 100).toBeLessThan(lazySum / 100 + 3);
+    const rows = randomRoom(1);
     const m = predictionMoment(table(rows), "q12", 4);
     if (m.kind !== "prediction") throw new Error("expected prediction");
-    expect(m.smartPct).toBeLessThan(45);
-    expect(m.beatsLazy).toBe(false);
     // lazy = share of the most common q12 answer
     const counts = { A: 0, B: 0, C: 0, D: 0 } as Record<OptionKey, number>;
     rows.forEach((r) => counts[r.q12]++);
@@ -131,8 +147,10 @@ describe("Phase 5 — analytics", () => {
   it("A9: on-screen wording never says 'cause' and always carries n", () => {
     const ans = fromSim(150, "hidden_groups", 1);
     for (const m of [spreadMoment(ans, 1), patternMoment(ans, 2, 1), groupsMoment(ans, 3, 1), predictionMoment(ans, "q12", 4)]) {
-      const text = JSON.stringify(m).toLowerCase();
-      expect(text).not.toMatch(/\bcaus/);
+      // Only our generated wording is checked; question texts themselves may say "causes".
+      const text = JSON.stringify([(m as any).sentence, (m as any).callout]).toLowerCase();
+      expect(text).not.toMatch(/caus/);
+      expect((m as any).sentence.length).toBeGreaterThan(0);
       expect((m as any).n).toBeGreaterThan(0);
     }
   });
