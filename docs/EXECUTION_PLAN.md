@@ -16,7 +16,7 @@ v1 was reviewed as if it were someone else's design for a live event. These are 
 |---|---|---|---|
 | 1 | 🔴 Critical | **Tied scores could blow up the finalist count.** Players with identical answers get identical scores. With only 64 possible answer combinations per round, a block of 15 tied players at the cutoff is likely, and "all ties survive" turns 20 finalists into 35. | Ties are broken by **answer speed** in that round (pre-announced). The host sees the tie block before locking and can override. (§5) |
 | 2 | 🔴 Critical | **Message storm.** If the server pushed an update to every screen on every answer, 400 answers would create 160,000 messages in 20 seconds. | Answer counts go **only to the host and projector**, at most twice per second. Phones receive nothing during voting except their own confirmation. (§3) |
-| 3 | 🔴 Critical | **The crash recovery didn't work on our host.** Render's disk is wiped on every restart or redeploy, so v1's "snapshot to disk" saved nothing. | The **host browser keeps a backup** (primary recovery), with an optional paid persistent disk. Strict rules: **one instance only, autoscaling off, no deploys after the final reset.** (§3, §10) |
+| 3 | 🔴 Critical | **The crash recovery didn't work on typical hosts.** Most hosting platforms wipe the disk on every restart or redeploy, so v1's "snapshot to disk" saved nothing. | The **host browser keeps a backup** (primary recovery), with a disk snapshot as a bonus where the host keeps files. Strict rules: **one instance only, autoscaling off, no deploys after the final reset.** (§3, §10) |
 | 4 | 🔴 Critical | **Abuse by students.** 400 engineering students includes someone who will script 5,000 fake joins, spam answers, or open `/host`. | Join cap, join lock, a strict validator on every message, per-connection rate limits, host password from server config, and finale answer keys kept on the server only. (§3.4) |
 | 5 | 🟠 High | **Phone clocks are wrong.** A phone 30 seconds off would show a broken countdown. | The server sends **"milliseconds remaining"**, never a clock time. The server alone decides when voting closes. (§3) |
 | 6 | 🟠 High | **Projector hardware is unknown.** Projectors are often old (4:3 aspect, 1024×768) and run on a weak college laptop. Animating 400 dots as separate React components may stutter. | Layouts for 4:3 and 16:9. The room map is drawn on **Canvas**, and animations use only GPU-friendly properties. Tested on the actual projector laptop. (§7) |
@@ -33,8 +33,8 @@ v1 was reviewed as if it were someone else's design for a live event. These are 
 
 **Verified vendor facts (10 Oct 2026):**
 - Supabase free realtime limit is **200 concurrent connections**, which confirms we shouldn't use it.
-- Render free instances sleep after 15 minutes and lose files on restart.
-- Render Starter is **$7/month, 0.5 CPU, 512 MB, never sleeps**. That is plenty: we need under 100 MB of RAM, and bandwidth for the event is about 0.3 GB.
+- Free hosting tiers commonly sleep when idle and lose files on restart. For example, Render's free tier sleeps after 15 minutes without traffic. Our design tolerates this: the open projector keeps the server awake, and the host backup covers restarts.
+- The app is small: under 100 MB of RAM and about 0.3 GB of bandwidth for the whole event.
 
 ---
 
@@ -90,12 +90,12 @@ There are 2 days, not 6 weeks. That means:
 | Charts | Hand-written SVG (bars, ribbons) + **Canvas** (room map, 500 dots) |
 | Analytics | Plain TypeScript: our own PCA, k-means and k-nearest-neighbours with fixed random seeds. The data is about 500×48 numbers, so it takes milliseconds. |
 | Tests | Vitest (logic) + bot swarm script (load) |
-| Hosting | Any always-on Node host with WebSockets. Recommended: **Render Starter** (verified above). **Exactly 1 instance, autoscaling OFF.** |
+| Hosting | **Chosen and run by the club leads, at no cost to us.** Requirements are in §12.1. A `Dockerfile` and plain `npm start` are included so it runs on any provider. |
 
 ### 3.2 Core rules (these are what prevent failures)
 
 1. **The server owns all truth:** scene, timer, scores, survivors. Clients only display it.
-2. **Render from snapshot.** On every connect or reconnect, the client gets the full state it is allowed to see and draws it. Refreshing any screen is always safe.
+2. **Draw from snapshot.** On every connect or reconnect, the client gets the full state it is allowed to see and draws it. Refreshing any screen is always safe.
 3. **Answers are idempotent.** One answer per player per question, so a second tap just returns the stored answer. Answers count only if the question is open, the player is allowed to answer it, and the option is valid.
 4. **Timer as remaining time.** The server sends `msRemaining`. Phones count down locally from that and resync on every message. Voting closes **only** when the server's timer fires.
 5. **Throttled updates.** During voting, only the host and projector receive the answered count, at most twice per second. Phones receive only their own confirmation.
@@ -287,7 +287,7 @@ If an item fails, we cut P2/P3 until it passes.
 | **Sun night** | Print QR codes plus a short URL, host cheat-sheet, Google Form fallback ready, laptops charged | You + host |
 | **Mon, 2 h before** | Venue check on the projector laptop + campus network. **Final reset.** After this: **no deploys.** | You + host |
 
-**If the leads can't deploy by Sunday 3 pm,** we load-test against a temporary deployment from your own account, so testing doesn't slip.
+**If the leads can't deploy by Sunday 3 pm,** we load-test against a temporary free deployment (or a tunnel from a laptop), so testing doesn't slip.
 
 ---
 
@@ -339,9 +339,24 @@ The GitHub CLI isn't installed. Either create an empty private repo on github.co
 
 ---
 
+### 12.1 Hosting requirements for the leads
+
+| Requirement | Why |
+|---|---|
+| Runs a **long-lived Node 22 process** (or Docker). **Not serverless-only platforms** like Vercel or Netlify Functions. | Serverless functions can't keep 400 live connections open. |
+| **WebSockets** supported | Live updates. HTTP fallback works, but it's slower. |
+| **Exactly one instance**, no autoscaling | Game state lives in one process's memory. |
+| **HTTPS** URL | Needed for the phone Share button and for trust when people scan the QR. |
+| Environment variable `HOST_PASSWORD` | Protects `/host`. |
+| Doesn't sleep **during the event** | On free tiers that sleep, open `/screen` 15 min early. Its live connection keeps the server awake. |
+| **No redeploys** after Monday's final reset | A redeploy restarts the server. |
+
+Free options that meet these requirements include Render (free tier), Koyeb and Railway's trial, or a college or club server. `docs/DEPLOY.md` will cover the leads' chosen provider.
+
 ## 13. Open decisions
 
 1. GitHub usernames of the leads, and whether the repo goes under a personal account or a club organisation.
+1b. **Which hosting platform will the leads use?** It must not be serverless-only (§12.1).
 2. Can the leads deploy by Sunday 11 am, and who is the deploy contact on Monday?
 3. Event start time Monday, and rehearsal Sunday ~5 pm?
 4. Club logo + colours.
