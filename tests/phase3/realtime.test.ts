@@ -77,6 +77,7 @@ describe("Phase 3 — realtime", () => {
     expect(st.host.winnersPreview.length).toBe(2);
     const rude = st.host.winnersPreview.find((w: any) => w.nickname === "RudeName");
     expect((await call(h, "host:action", { type: "lockWinners", count: 2, hide: [rude.playerId] })).ok).toBe(true);
+    await waitFor(h, "state", (d) => d.host.winnersLocked);
     await hostTo(h, (s) => s.type === "winners");
     const sc = await waitFor(scr, "state", (d) => d.scene.type === "winners");
     const names = sc.winners.map((w: any) => w.nickname);
