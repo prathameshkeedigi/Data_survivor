@@ -68,7 +68,7 @@ function App() {
         <div className="-mx-4 mb-2 bg-brand/20 py-1 text-center text-[11px] font-semibold tracking-[0.18em] text-brand-ink">REHEARSAL · SIMULATED DATA</div>
       )}
       {!connected && joined && (
-        <div className="-mx-4 mb-2 bg-surface-2 py-1.5 text-center text-xs text-muted" role="status">
+        <div data-testid="reconnecting" className="-mx-4 mb-2 bg-surface-2 py-1.5 text-center text-xs text-muted" role="status">
           Reconnecting… your answers are safe.
         </div>
       )}

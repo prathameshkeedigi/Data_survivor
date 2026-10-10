@@ -86,7 +86,20 @@ const sha = (s: string) => createHash("sha256").update(s).digest();
 
 export async function startServer(config: Config, tuningOverrides: Partial<Tuning> = {}) {
   const t: Tuning = { ...DEFAULT_TUNING, ...tuningOverrides };
-  const app = createHttpApp(config);
+  // Event-loop lag = how late timers fire. Above ~200 ms the server is struggling.
+  let lagMax = 0;
+  let lagLast = Date.now();
+  const lagTimer = setInterval(() => {
+    const now = Date.now();
+    lagMax = Math.max(lagMax * 0.9, now - lagLast - 250);
+    lagLast = now;
+  }, 250);
+  const app = createHttpApp(config, () => ({
+    players: game.playerCount,
+    sockets: io.engine.clientsCount,
+    scene: game.scene.type,
+    lagMs: Math.round(lagMax),
+  }));
   const http = createServer(app);
   const io = new Server(http, {
     maxHttpBufferSize: 5e6, // the host's restore payload; everything else is tiny and rate-limited
@@ -408,6 +421,7 @@ export async function startServer(config: Config, tuningOverrides: Partial<Tunin
     close: () =>
       new Promise<void>((resolve) => {
         timers.forEach(clearInterval);
+        clearInterval(lagTimer);
         io.close(() => resolve());
       }),
   };

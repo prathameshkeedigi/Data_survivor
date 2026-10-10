@@ -60,6 +60,8 @@ test("U1–U7: a full game across host, two projectors and three phones", async 
       await old.screenshot({ path: `${SHOTS}/screen-4x3-${sc}.png` });
       await phones[1].screenshot({ path: `${SHOTS}/phone-360-${sc}.png` });
       for (const [i, p] of phones.entries()) await assertFits(p, `phone ${i} @ ${sc}`);
+      // Regression: connected screens must never show a "reconnecting" banner.
+      for (const p of [...phones, wide, old]) await expect(p.getByTestId("reconnecting")).toHaveCount(0);
       await assertFits(wide, `screen 1080 @ ${sc}`, true);
       await assertFits(old, `screen 4:3 @ ${sc}`, true);
     }

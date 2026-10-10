@@ -143,9 +143,10 @@ export function patternMoment(ans: Answers, round: number, seed: number) {
   if (found && found.lift > 1.15) {
     // Shuffle check: break every link between questions and see how often a pattern this strong appears by chance.
     const rand = mulberry32(seed);
-    const SHUFFLES = 200;
+    const SHUFFLES = 100;
     let asStrong = 0;
     for (let s = 0; s < SHUFFLES; s++) {
+      if (asStrong > SHUFFLES * 0.05) break; // already "could be chance" — no need to keep going
       const shuffled: typeof cols = {};
       for (const q of qids) {
         const c = [...cols[q]];

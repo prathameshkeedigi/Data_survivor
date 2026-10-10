@@ -22,6 +22,8 @@ export function useConnected(socket: Socket) {
     const off = () => setConnected(false);
     socket.on("connect", on);
     socket.on("disconnect", off);
+    // The socket may have connected before this effect subscribed.
+    setConnected(socket.connected);
     return () => {
       socket.off("connect", on);
       socket.off("disconnect", off);

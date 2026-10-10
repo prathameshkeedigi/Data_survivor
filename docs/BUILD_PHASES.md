@@ -1,5 +1,26 @@
 # DATA SURVIVOR — Build Phases & Test Cases
 
+## Status (Saturday 10 October, night)
+
+| Phase | Status | Evidence |
+|---|---|---|
+| 1 Foundation | ✅ Done | F1–F5 pass; clean-clone build verified |
+| 2 Game engine | ✅ Done | E1–E32 pass; 2,000 simulated games; 5 injected bugs all caught |
+| 3 Realtime | ✅ Done | R1–R17 pass (real sockets, incl. polling-only and backup/restore) |
+| 4 Screens | ✅ Done (automated part) | U1–U7 pass in real Chrome: host + 1080p and 4:3 projectors + 3 phones, full game, refresh, offline recovery |
+| 5 Data moments | ✅ Done | A1–A11 pass. Prediction and pattern use shuffle checks; false-alarm rate measured at 5/100 |
+| 6 Wrapped | ✅ Done (automated part) | W1–W3 pass; share card renders in e2e |
+| 7 Load | ✅ Passed locally | 500 bots: 0 lost/duplicated answers in 7,331; late answers all rejected; 233 reconnects; p95 scene change 545 ms; lag 42 ms |
+| 8 Deploy & rehearsal | ⏳ Needs people | Deploy (DEPLOY.md), rerun the swarm on the real URL, real-device checks (U8, W4–W5, D3–D4), rehearsal (RUNBOOK.md) |
+
+**Still manual (cannot be automated here):**
+- U8: real iPhone/Android and in-app browsers.
+- W4–W5: the share sheet on real phones.
+- D2: the load test on the real host.
+- D3–D5: campus Wi-Fi, the projector laptop, and the rehearsal.
+
+**Change made while building:** the room map shows at most **3** groups, not 4. Only 3 colours stay colour-blind-safe as scatter dots on the dark background (checked with the dataviz palette validator).
+
 ## Development method: Test-Driven Development (TDD)
 
 **No production code is written before its test.** Every phase follows the same loop:

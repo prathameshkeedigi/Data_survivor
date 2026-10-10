@@ -9,13 +9,13 @@ export default defineConfig({
   root: "web",
   plugins: [react(), tailwindcss()],
   build: {
-    outDir: resolve(__dirname, "dist/web"),
+    outDir: resolve(import.meta.dirname, "dist/web"),
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        play: resolve(__dirname, "web/index.html"),
-        screen: resolve(__dirname, "web/screen.html"),
-        host: resolve(__dirname, "web/host.html"),
+        play: resolve(import.meta.dirname, "web/index.html"),
+        screen: resolve(import.meta.dirname, "web/screen.html"),
+        host: resolve(import.meta.dirname, "web/host.html"),
       },
     },
   },

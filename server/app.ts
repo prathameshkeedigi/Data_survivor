@@ -2,13 +2,14 @@ import express from "express";
 import { join, resolve } from "node:path";
 import type { Config } from "./config";
 
-export function createHttpApp(config: Config) {
+export function createHttpApp(config: Config, stats: () => Record<string, unknown> = () => ({})) {
   const app = express();
   const webDir = resolve(config.webDir);
   app.disable("x-powered-by");
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true, uptimeSec: Math.round(process.uptime()) });
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, uptimeSec: Math.round(process.uptime()), rssMb: Math.round(process.memoryUsage().rss / 1e6), ...stats() });
   });
 
   // HTML must never be cached, so a fixed deploy is picked up on refresh.

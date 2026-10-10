@@ -112,10 +112,10 @@ export function RibbonChart({
   );
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full" role="img" aria-label={`Ribbons between ${labelA} and ${labelB}`}>
-      <text x={170} y={24} fill="var(--color-muted)" fontSize="20" textAnchor="start" fontFamily="var(--font-display)">
+      <text x={170} y={24} fill="var(--color-muted)" fontSize="26" textAnchor="start" fontFamily="var(--font-display)">
         {labelA}
       </text>
-      <text x={W - 170} y={24} fill="var(--color-muted)" fontSize="20" textAnchor="end" fontFamily="var(--font-display)">
+      <text x={W - 170} y={24} fill="var(--color-muted)" fontSize="26" textAnchor="end" fontFamily="var(--font-display)">
         {labelB}
       </text>
       {ribbons
