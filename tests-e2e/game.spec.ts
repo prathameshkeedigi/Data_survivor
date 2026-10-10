@@ -60,6 +60,15 @@ test("U1–U7: a full game across host, two projectors and three phones", async 
       await old.screenshot({ path: `${SHOTS}/screen-4x3-${sc}.png` });
       await phones[1].screenshot({ path: `${SHOTS}/phone-360-${sc}.png` });
       for (const [i, p] of phones.entries()) await assertFits(p, `phone ${i} @ ${sc}`);
+      // V9/V10: the new charts are on screen
+      const visual: Record<string, [Page, string][]> = {
+        lobby: [[wide, "join-dots"]],
+        survivors: [[wide, "survivors-chart"]],
+        recap: [[wide, "recap-thumbs"]],
+        results: [[phones[0], "mini-bars"]],
+      };
+      for (const [pg, id] of visual[sc] ?? []) await expect(pg.getByTestId(id).first(), `${id} @ ${sc}`).toBeVisible();
+      if (sc === "question" && (await host.getByTestId("voting-open").count()) > 0) await expect(wide.getByTestId("answer-meter")).toBeVisible();
       // Regression: connected screens must never show a "reconnecting" banner.
       for (const p of [...phones, wide, old]) await expect(p.getByTestId("reconnecting")).toHaveCount(0);
       await assertFits(wide, `screen 1080 @ ${sc}`, true);
@@ -107,10 +116,14 @@ test("U1–U7: a full game across host, two projectors and three phones", async 
   // Wrapped: every phone gets a story and can reach the share card
   for (const [i, p] of phones.entries()) {
     await expect(p.getByTestId("wrapped-card")).toBeVisible();
-    for (let k = 0; k < 8 && !(await p.getByTestId("share-card").isVisible()); k++) {
+    const charts = new Set<string>();
+    for (let k = 0; k < 10 && !(await p.getByTestId("share-card").isVisible()); k++) {
+      for (const id of ["wrapped-dist", "wrapped-timeline", "wrapped-rounds", "wrapped-tags"]) if (await p.getByTestId(id).isVisible()) charts.add(id);
+      await p.screenshot({ path: `${SHOTS}/phone-${i}-wrapped-${k}.png` });
       await p.getByTestId("wrapped-next").click();
-      await p.waitForTimeout(250);
+      await p.waitForTimeout(350);
     }
+    expect([...charts].sort(), `phone ${i} saw every Wrapped chart`).toEqual(["wrapped-dist", "wrapped-rounds", "wrapped-tags", "wrapped-timeline"]);
     await expect(p.getByTestId("share-card")).toBeVisible();
     await p.screenshot({ path: `${SHOTS}/phone-${i}-share.png` });
     await assertFits(p, `phone ${i} wrapped`);
