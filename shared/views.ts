@@ -25,6 +25,7 @@ export interface SurvivorsView {
 export interface BaseView {
   scene: Scene;
   rehearsal: boolean;
+  fallback: boolean;
   question: PublicQuestion | null;
   votingOpen: boolean;
   paused: boolean;

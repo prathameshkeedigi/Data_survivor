@@ -15,4 +15,11 @@ describe("Phase 1 — config", () => {
     expect(c.hostPassword).toBe("long-enough-pass");
     expect(loadConfig({ HOST_PASSWORD: "long-enough-pass", PORT: "8080" }).port).toBe(8080);
   });
+
+  it("F3d: optional timing overrides are read from the environment", () => {
+    const c = loadConfig({ HOST_PASSWORD: "long-enough-pass", QUESTION_MS: "15000", FINALE_MS: "30000" });
+    expect(c.tuning).toEqual({ questionMs: 15000, finaleMs: 30000 });
+    expect(loadConfig({ HOST_PASSWORD: "long-enough-pass" }).tuning).toEqual({});
+    expect(() => loadConfig({ HOST_PASSWORD: "long-enough-pass", QUESTION_MS: "abc" })).toThrow(/QUESTION_MS/);
+  });
 });

@@ -255,4 +255,19 @@ describe("Phase 3 — realtime", () => {
     closeAll(h);
     await srv.close();
   });
+
+  it("R17: host fallback switch reaches the projector and resets on the next scene", async () => {
+    const srv = await start();
+    const h = await host(srv.url);
+    const scr = client(srv.url);
+    await connected(scr);
+    await call(scr, "screen:hello");
+    expect((await call(h, "host:action", { type: "setFallback", on: true })).ok).toBe(true);
+    await waitFor(scr, "state", (d) => d.fallback === true);
+    await sleep(100);
+    expect((await call(h, "host:action", { type: "advance" })).ok).toBe(true);
+    await waitFor(scr, "state", (d) => d.scene.type === "question" && d.fallback === false);
+    closeAll(h, scr);
+    await srv.close();
+  });
 });

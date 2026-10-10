@@ -5,6 +5,8 @@ import { SCENES, type Game } from "./engine/game";
 
 export interface ServerMeta {
   rehearsal: boolean;
+  /** Host pressed F: the projector shows the pre-made simulated version of the current data moment. */
+  fallback: boolean;
   joinsLocked: boolean;
   /** Extra per-round data moments (Phase 5), keyed by round. */
   moments: Record<number, { screen: unknown; perPlayer: (playerId: string) => unknown } | "failed">;
@@ -61,6 +63,7 @@ function base(game: Game, meta: ServerMeta): BaseView {
   return {
     scene: sc,
     rehearsal: meta.rehearsal,
+    fallback: meta.fallback,
     question,
     votingOpen: game.votingOpen,
     paused: game.paused,

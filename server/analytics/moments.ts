@@ -317,12 +317,12 @@ export function groupsMoment(ans: Answers, round: number, seed: number) {
   const X = oneHot(people.map(([, r]) => r), qids);
   const P = pca2(X, seed);
 
-  // Pick k in 2–4 by silhouette; a weak best means "no clear groups".
+  // Pick k in 2–3 by silhouette (3 is the most colours a scatter can keep colour-blind-safe); a weak best means "no clear groups".
   const rand = mulberry32(seed + 1);
   let bestK = 0;
   let bestSil = -1;
   let bestAssign: number[] = [];
-  for (let k = 2; k <= 4; k++) {
+  for (let k = 2; k <= 3; k++) {
     let run = kmeans(X, k, rand);
     for (let r = 0; r < 2; r++) {
       const alt = kmeans(X, k, rand);

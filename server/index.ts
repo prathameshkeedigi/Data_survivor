@@ -2,7 +2,7 @@ import { loadConfig } from "./config";
 import { startServer } from "./server";
 
 const config = loadConfig(process.env);
-const srv = await startServer(config);
+const srv = await startServer(config, config.tuning);
 console.log(`DATA SURVIVOR listening on :${srv.port}`);
 
 for (const sig of ["SIGINT", "SIGTERM"] as const) {

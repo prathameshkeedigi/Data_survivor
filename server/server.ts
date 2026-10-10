@@ -77,6 +77,7 @@ const HostActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("lockJoins") }),
   z.object({ type: z.literal("unlockJoins") }),
   z.object({ type: z.literal("setRehearsal"), on: z.boolean() }),
+  z.object({ type: z.literal("setFallback"), on: z.boolean() }),
   z.object({ type: z.literal("reset"), confirm: z.literal("RESET") }),
   z.object({ type: z.literal("restore"), backup: BackupSchema }),
 ]);
@@ -97,7 +98,7 @@ export async function startServer(config: Config, tuningOverrides: Partial<Tunin
 
   const gameOpts = () => ({ now: Date.now, questionMs: t.questionMs, finaleMs: t.finaleMs, minSceneGapMs: t.minSceneGapMs });
   let game = new Game(gameOpts());
-  const meta: ServerMeta = { rehearsal: true, joinsLocked: false, moments: {}, wrapped: () => null };
+  const meta: ServerMeta = { rehearsal: true, fallback: false, joinsLocked: false, moments: {}, wrapped: () => null };
   let wrappedCache: Map<string, WrappedCore> | null = null;
 
   /** Data moments are computed as soon as a round's results freeze, so they're ready before the host needs them. */
@@ -208,6 +209,7 @@ export async function startServer(config: Config, tuningOverrides: Partial<Tunin
   ];
 
   function afterSceneChange() {
+    meta.fallback = false;
     hooks.onSceneEntered(game, meta);
     changed();
   }
@@ -359,6 +361,10 @@ export async function startServer(config: Config, tuningOverrides: Partial<Tunin
           return ack({ ok: true });
         case "setRehearsal":
           meta.rehearsal = a.on;
+          changed();
+          return ack({ ok: true });
+        case "setFallback":
+          meta.fallback = a.on;
           changed();
           return ack({ ok: true });
         case "reset":
