@@ -269,3 +269,14 @@ New data the server sends (aggregates only — privacy rules unchanged):
 | V9 | E2E | Projector shows the new charts | Lobby join dots, question answer meter, survivors histogram, recap thumbnails are visible |
 | V10 | E2E | Phone shows the new charts | Results mini-bars; Wrapped distribution, timeline, rounds and tag charts are visible |
 | V11 | Regression | Everything from Phases 1–7 | All earlier tests pass; the 500-bot load test still passes |
+
+## Phase 10 — Small rooms (event morning)
+
+**Goal:** the turnout may be anywhere from 20 to 200, so all four data moments must draw a real chart for any room of **5 or more** people (the minimum stays at 5 for privacy: smaller groups are never shown). Patterns keeps its inner safety rules (a combination needs ≥ 5 people), so a small room may honestly show "No strong patterns".
+
+| ID | Type | Test | Expected |
+|---|---|---|---|
+| S1 | Unit | `MIN_N` | 5 for spread, pattern, groups and prediction. Rooms of 1–4 return `too_few`. |
+| S2 | Unit | Every room size from 5 to 60, every audience scenario, all 4 moments, plus every player's personal card | No error, never `too_few`, no `NaN`/`Infinity` in any payload, no player IDs in moment payloads |
+| S3 | Integration | A full live game with **20 players** | The projector receives all four moments (spread, pattern, groups, prediction), none `too_few`; every phone gets its Wrapped |
+| S4 | Regression | Everything from Phases 1–9 | All earlier tests pass (A5 and A10 updated to the new minimum); the load test still passes |

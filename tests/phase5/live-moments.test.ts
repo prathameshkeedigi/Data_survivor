@@ -22,9 +22,9 @@ describe("Phase 5/6 — data moments and Wrapped over the live connection", () =
     );
     await sleep(300);
     for (const l of scr.log) if (l.ev === "state" && l.args[0].scene.type === "moment" && l.args[0].moment) kinds.push(l.args[0].moment.kind);
-    expect(kinds).toEqual(expect.arrayContaining(["spread", "pattern", "groups"]));
-    // 45 people < 60 needed for prediction → honest fallback
-    expect(kinds).toContain("too_few");
+    // Phase 10: 45 people is enough for all four moments
+    expect(kinds).toEqual(expect.arrayContaining(["spread", "pattern", "groups", "prediction"]));
+    expect(kinds).not.toContain("too_few");
     const phoneMoment = players[0].log.find((l) => l.ev === "state" && l.args[0].scene.type === "moment" && l.args[0].momentCard);
     expect(phoneMoment).toBeTruthy();
     const w = latest(players[3]).wrapped;
