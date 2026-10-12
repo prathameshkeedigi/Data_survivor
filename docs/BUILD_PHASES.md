@@ -277,6 +277,6 @@ New data the server sends (aggregates only — privacy rules unchanged):
 | ID | Type | Test | Expected |
 |---|---|---|---|
 | S1 | Unit | `MIN_N` | 5 for spread, pattern, groups and prediction. Rooms of 1–4 return `too_few`. |
-| S2 | Unit | Every room size from 5 to 60, every audience scenario, all 4 moments, plus every player's personal card | No error, never `too_few`, no `NaN`/`Infinity` in any payload, no player IDs in moment payloads |
+| S2 | Unit | Every room size from 5 to 60, every audience scenario, all 4 moments, plus every player's personal card | No error; `too_few` only when fewer than 5 actually answered that question (skips); no `NaN`/`Infinity` in any payload, no player IDs in moment payloads |
 | S3 | Integration | A full live game with **20 players** | The projector receives all four moments (spread, pattern, groups, prediction), none `too_few`; every phone gets its Wrapped |
 | S4 | Regression | Everything from Phases 1–9 | All earlier tests pass (A5 and A10 updated to the new minimum); the load test still passes |

@@ -6,7 +6,8 @@ import { mulberry32 } from "../sim/rng";
 export type Row = Record<string, OptionKey | null | undefined>;
 export type Answers = Map<string, Row>;
 
-export const MIN_N = { spread: 20, pattern: 40, groups: 40, prediction: 60 };
+// 5 is the floor for privacy: smaller groups are never shown. Turnout may be as low as 20.
+export const MIN_N = { spread: 5, pattern: 5, groups: 5, prediction: 5 };
 
 const NUM: Record<string, number> = Object.fromEntries(DILEMMA_QUESTIONS.map((q, i) => [q.id, i + 1]));
 const optText = (qid: string, k: OptionKey) => QUESTION_BY_ID[qid].options.find((o) => o.key === k)!.text;

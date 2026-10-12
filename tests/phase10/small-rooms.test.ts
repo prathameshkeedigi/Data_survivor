@@ -23,7 +23,11 @@ describe("Phase 10 — small rooms", () => {
       for (let n = 5; n <= 60; n++) {
         const ans = fromSim(n, s, n);
         for (const m of allFour(ans)) {
-          expect(m.kind).not.toBe("too_few");
+          // Only allowed when fewer than 5 actually answered (e.g. simulated players skipped Q12)
+          if (m.kind === "too_few") {
+            expect(m.n).toBeLessThan(5);
+            continue;
+          }
           const json = JSON.stringify(m);
           expect(json).not.toMatch(/NaN|Infinity/);
           expect(json).not.toMatch(/sim0\d{3}/);

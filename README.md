@@ -140,12 +140,12 @@ After each round, the projector shows a chart computed from the room's real answ
 
 | # | Moment | Question it answers | Method | Minimum players |
 |---|---|---|---|---|
-| 1 | **Spread** | How split was the room? | Share per option, with a split label (near-even / leaning / strong favourite) and a ±95% margin of error | 20 |
-| 2 | **Patterns** | Which answers go together? | Lift (`P(B given A) / P(B)`) over all question pairs, plus a 100-shuffle permutation check that it isn't chance. Groups smaller than 5 are never shown. | 40 |
-| 3 | **Groups** | What does the room look like as a map? | One-hot encoding, then PCA to 2-D, then k-means (k = 2–3) chosen by silhouette score. One dot per person. | 40 |
-| 4 | **Prediction** | Can a computer guess your answer? | Leave-one-out k-nearest-neighbours (k = 5) vs a "lazy" guess of the most popular answer, with a 200-shuffle permutation test | 60 |
+| 1 | **Spread** | How split was the room? | Share per option, with a split label (near-even / leaning / strong favourite) and a ±95% margin of error | 5 |
+| 2 | **Patterns** | Which answers go together? | Lift (`P(B given A) / P(B)`) over all question pairs, plus a 100-shuffle permutation check that it isn't chance. Groups smaller than 5 are never shown. | 5 |
+| 3 | **Groups** | What does the room look like as a map? | One-hot encoding, then PCA to 2-D, then k-means (k = 2–3) chosen by silhouette score. One dot per person. | 5 |
+| 4 | **Prediction** | Can a computer guess your answer? | Leave-one-out k-nearest-neighbours (k = 5) vs a "lazy" guess of the most popular answer, with a 200-shuffle permutation test | 5 |
 
-Below the minimum size, a plain message replaces the chart. If a calculation ever fails, the host presses **F** to show a pre-made fallback chart.
+Turnout may be anywhere from 20 to 200, so every chart is drawn from **5 people** upward (5 is the privacy floor). Small rooms give honest results: Patterns often says "No strong patterns", and Prediction may not beat the lazy guess. Below 5, a plain message replaces the chart. If a calculation ever fails, the host presses **F** to show a pre-made fallback chart.
 
 ---
 
@@ -365,7 +365,7 @@ The project was built **test-first**: every feature's test cases were written do
 | Command | What it runs | Time |
 |---|---|---|
 | `npm run typecheck` | TypeScript type check | ~10 s |
-| `npm test` | All unit and integration tests (78), including 2,000 simulated games | ~45 s |
+| `npm test` | All unit and integration tests (81), including 2,000 simulated games | ~45 s |
 | `npm run test:fast` | The same, without the long simulation | ~15 s |
 | `npm run build && npm run verify` | Production build, plus a check that the phone page stays under 150 KB gzipped | ~10 s |
 | `npm run test:e2e` | Playwright: a host, two projectors (16:9 and 4:3) and three phones play a full game in real Chromium. Screenshots go to `test-results/screens/`. | ~1.5 min |
@@ -390,7 +390,7 @@ First time only, before the end-to-end tests: `npx playwright install chromium`.
 
 | Check | Result |
 |---|---|
-| Unit and integration | **78 / 78 pass** |
+| Unit and integration | **81 / 81 pass** (incl. small rooms of 5–60 people) |
 | End-to-end | **2 / 2 pass** |
 | Phone bundle | **99.7 KB** gzipped (budget 150 KB) |
 | Load: 500 bots joined | 500 / 500 in 45 s, 0 errors |
@@ -425,6 +425,7 @@ Any bug found later gets a reproducing test first, then the fix.
 | 6. Wrapped and recap | Personal story cards and share image | W1–W7 | ✅ Done (automated). W4–W5 need real phones. |
 | 7. Hardening and load | 500-bot swarm, malicious clients, reconnects | L1–L9 | ✅ Passed locally |
 | 9. Visual upgrade | Projector charts (join dots, answer ring, survivors histogram, podium, recap thumbnails), phone result bars, Wrapped charts, new type and palette | V1–V11 | ✅ Done |
+| 10. Small rooms | All four charts from 5 people (turnout 20–200) | S1–S4 | ✅ Done |
 | 8. Deploy and rehearsal | Deploy, load test on the real URL, real devices, rehearsal, final reset | D1–D7 | ⏳ Needs people (see [§13](#13-deployment) and [§14](#14-event-day-runbook)) |
 
 **Still manual:**
